@@ -2,8 +2,6 @@ package com.AlanYu.Filter;
 
 import android.util.Log;
 
-import java.util.concurrent.Callable;
-
 import weka.classifiers.Classifier;
 import weka.classifiers.meta.Vote;
 import weka.core.Attribute;
@@ -133,7 +131,6 @@ public class DecisionMaker extends Vote {
                                          Instances labeledData) {
         int[] result = new int[4];
         int classType = 0;
-
 
 
         for (int i = 0; i < labeledData.numInstances(); i++) {
