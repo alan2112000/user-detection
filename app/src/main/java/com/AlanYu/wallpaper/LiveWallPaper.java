@@ -348,7 +348,7 @@ public class LiveWallPaper extends WallpaperService {
         public void onTouchEvent(MotionEvent event) {
             if(is_experiment){
 				Log.d("on create","num of test instances"+testData.numInstances());
-//				decisionMaker.evaluation(testData);
+				decisionMaker.evaluation(testData);
 				try {
 //					decisionMaker.evaluationEachClassifier(testData);
 				} catch (Exception e) {
