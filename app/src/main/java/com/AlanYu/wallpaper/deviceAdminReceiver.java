@@ -30,7 +30,7 @@ public class deviceAdminReceiver extends DeviceAdminReceiver {
 
     @Override
     public void onEnabled(Context context, Intent intent) {
-        showToast(context, "Device manager :enable");
+        showToast(context, "Device powerManager :enable");
     }
 
     @Override

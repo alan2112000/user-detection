@@ -21,6 +21,7 @@ import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
+import android.widget.Toast;
 
 import com.AlanYu.Filter.DecisionMaker;
 import com.AlanYu.Filter.J48Classifier;
@@ -61,12 +62,11 @@ public class LiveWallPaper extends WallpaperService {
     private static String nowLabel;
     protected Vector<TouchDataNode> vc;
     KeyguardManager keyguardManager;
-    KeyguardLock k1;
-    KeyguardLock Keylock;
-    PowerManager manager;
+    KeyguardLock keylock;
+    PowerManager powerManager;
     DevicePolicyManager mDPM;
     ComponentName mDeviceAdminSample;
-    private boolean is_experiment=false;
+    private boolean is_experiment = false;
     private int mode = DecisionMaker.TEST;
     private int pid = 0;
     private String deleteProcessName = null;
@@ -187,7 +187,7 @@ public class LiveWallPaper extends WallpaperService {
         args.put(PRESSURE, String.valueOf(event.getPressure()));
         args.put(SIZE, String.valueOf(event.getSize()));
         args.put(TIMESTAMP, String.valueOf(event.getEventTime()));
-        args.put(LABEL,nowLabel);
+        args.put(LABEL, nowLabel);
         long rowid = writeSource.insert(TOUCH_TABLE_NAME, null, args);
 
         Log.d("writeDatabase Event",
@@ -273,8 +273,8 @@ public class LiveWallPaper extends WallpaperService {
 
         // Build System Manager
         keyguardManager = (KeyguardManager) getSystemService(Activity.KEYGUARD_SERVICE);
-        Keylock = keyguardManager.newKeyguardLock(Activity.KEYGUARD_SERVICE);
-        manager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        keylock = keyguardManager.newKeyguardLock(Activity.KEYGUARD_SERVICE);
+        powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mDPM = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         mDeviceAdminSample = new ComponentName(LiveWallPaper.this,
                 deviceAdminReceiver.class);
@@ -314,10 +314,10 @@ public class LiveWallPaper extends WallpaperService {
         nowLabel = setting.getString("name", OTHER_LABEL);
         THRESHOLD = setting.getFloat("Threshold", (float) 0.5);
         mode = setting.getInt("Mode", DecisionMaker.TEST);
-        Log.d("sharePreference " , "is_experiment :" + is_experiment);
+        Log.d("sharePreference ", "is_experiment :" + is_experiment);
         is_experiment = setting.getBoolean("Experiment", false);
 
-        Log.d("Get preference setting  ", "mode:" + mode + " is_experiment: "+is_experiment+ " threshold : " + THRESHOLD +" now label :"+nowLabel);
+        Log.d("Get preference setting  ", "mode:" + mode + " is_experiment: " + is_experiment + " threshold : " + THRESHOLD + " now label :" + nowLabel);
         // TODO get protected list from apps
         // TODO the is_experiment can't get real data
     }
@@ -335,6 +335,23 @@ public class LiveWallPaper extends WallpaperService {
                 + "traindata size " + trainingData.numInstances());
     }
 
+    /**
+     * function : to set instances from touch event
+     *
+     * @param event
+     * @param instances
+     */
+    private void setInstancesFromEvent(MotionEvent event, Instances instances) {
+        Instance iExample = new DenseInstance(5);
+        FastVector fv = decisionMaker.getWekaAttributes();
+        //TODO but in this line  maybe the  weka attributes didnt be set correctely
+        iExample.setValue((Attribute) fv.elementAt(0), (double) event.getX());
+        iExample.setValue((Attribute) fv.elementAt(1), (double) event.getY());
+        iExample.setValue((Attribute) fv.elementAt(2), (double) event.getPressure());
+        iExample.setValue((Attribute) fv.elementAt(3), (double) event.getSize());
+        instances.add(iExample);
+    }
+
     public class TouchEngine extends Engine {
 
         @Override
@@ -346,21 +363,22 @@ public class LiveWallPaper extends WallpaperService {
 
         @Override
         public void onTouchEvent(MotionEvent event) {
-            if(is_experiment){
-				Log.d("on create","num of test instances"+testData.numInstances());
-				decisionMaker.evaluation(testData);
-				try {
-//					decisionMaker.evaluationEachClassifier(testData);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-            }
-            else {
-                if (mode == DecisionMaker.TRAINING)
-                    writeDataBase(event);
-                else {
-                    setInstancesFromEvent(event,testData);
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                if (is_experiment) {
+                    try {
+                        Log.d("on create", "num of test instances" + testData.numInstances());
+                        // TODO 交給 other  thread 去做  evaluation 成本太高
+                        decisionMaker.evaluationEachClassifier(testData);
+                        decisionMaker.evaluationWithMajorityVoting(testData);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
+            }
+            if (mode == DecisionMaker.TRAINING)
+                writeDataBase(event);
+            else {
+                setInstancesFromEvent(event, testData);
             }
             super.onTouchEvent(event);
         }
@@ -374,11 +392,9 @@ public class LiveWallPaper extends WallpaperService {
             if (visible) {
                 getSharedPreferenceSetting();
                 stopService(intent);
-                Keylock.disableKeyguard();
+                keylock.disableKeyguard();
                 Log.d("visible", "true now user : " + nowLabel);
             } else {
-
-
                 /*
                  * ============================================================ if
 				 * wallpaperService is forebackground then kill monitorAppsService else
@@ -386,58 +402,47 @@ public class LiveWallPaper extends WallpaperService {
 				 * ============================================================
 				 */
                 if (isInProtectList()) {
-                    decisionMaker.setThreshold(getThreshold());
-                    Log.d("invisible",
-                            "executed process is in the protect list ");
-
-                    if (DecisionMaker.IS_OTHER == decisionMaker
-                            .getFinalLabel(testData)) {
-                        startService(intent);
-                        Log.d("Decision making ", "You are other");
-                    } else
-                        Log.d("Decision making ", "You are owner");
+                    if (mode == DecisionMaker.TEST) {
+                        decisionMaker.setThreshold(getThreshold());
+                        Log.d("invisible",
+                                "executed process is in the protect list ");
+                        if (DecisionMaker.IS_OTHER == decisionMaker
+                                .getFinalLabel(testData)) {
+                            startService(intent);
+                            Log.d("Decision making ", "You are other");
+                            Toast.makeText(LiveWallPaper.this, " You are not the owner you mother fucker", Toast.LENGTH_LONG).show();
+                            //TODO  1. lock screen 2.
+                        } else
+                            Log.d("Decision making ", "You are owner");
+                        // TODO   1. add 1 success access to database
+                    }
                     // TODO to record the recently precision and if precision decrease
                     // always drop below
                     // 0.5 remember to add some retraining policy
                     // TODO below is lock screen policy
-                    // if ((DecisionMaker.IS_OTHER == decisionMaker
-                    // .getFinalLabel(testData))) {
-                    // if (keyguardManager.) {
-                    // Log.d("lock screen",
-                    // "You are not the owner but u just unlock screen");
-                    // Keylock.disableKeyguard();
-                    // }
-                    // else{
-                    // Log.d("lock screen", "You are not the user");
-                    // Keylock.reenableKeyguard();
-                    // mDPM.lockNow();
-                    // }
-                    // // You are Owner
-                    // } else {
-                    // Keylock.disableKeyguard();
-                    // Log.d("invisible",
-                    // "it's owner and apps is also  in protected list ");
-                    // }
+                    if ((DecisionMaker.IS_OTHER == decisionMaker.getFinalLabel(testData))) {
+                        keylock.reenableKeyguard();
+                        mDPM.lockNow();
+
+//                        if (keyguardManager.) {
+//                            Log.d("lock screen",
+//                                    "You are not the owner but u just unlock screen");
+//                            keylock.disableKeyguard();
+//                        } else {
+//                            Log.d("lock screen", "You are not the user");
+//                            keylock.reenableKeyguard();
+//                            mDPM.lockNow();
+//                        }
+                        // You are Owner
+                    } else {
+                        keylock.disableKeyguard();
+                        Log.d("invisible",
+                                "it's owner and apps is also  in protected list ");
+                    }
                 }
             }
             super.onVisibilityChanged(visible);
         }
-    }
-
-    /**
-     * function : to set instances from touch event
-     * @param event
-     * @param instances
-     */
-    private void setInstancesFromEvent(MotionEvent event,Instances instances) {
-        Instance iExample = new DenseInstance(5);
-        FastVector fv = decisionMaker.getWekaAttributes();
-        //TODO but in this line  maybe the  weka attributes didnt be set correctely
-        iExample.setValue((Attribute) fv.elementAt(0), (double) event.getX());
-        iExample.setValue((Attribute) fv.elementAt(1), (double) event.getY());
-        iExample.setValue((Attribute) fv.elementAt(2), (double) event.getPressure());
-        iExample.setValue((Attribute) fv.elementAt(3), (double) event.getSize());
-        instances.add(iExample);
     }
 
 }

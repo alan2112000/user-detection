@@ -38,7 +38,6 @@ public class DecisionMaker extends Vote {
 
     public DecisionMaker() {
         init();
-
     }
 
     private void init() {
@@ -83,28 +82,52 @@ public class DecisionMaker extends Vote {
         return predictionInstances(unLabelData);
     }
 
+
     public void evaluation(Instances labeledData) {
-        int[] result = new int[4];
-        result = getStaticPerClassifier(this, labeledData);
-        printStatics(result);
+        int[] result = getStatisticsClassifier(this, labeledData);
+        printStatistics(result);
     }
 
     /**
-     * @param : Instance
-     * @return : No return value but will out put the result in format
-     * @category : evaluation
+     * print every classifier evaluation result
+     *
+     * @param labeledData
+     * @throws Exception
      */
     public void evaluationEachClassifier(Instances labeledData)
             throws Exception {
-        int[] result = new int[3];
+        int[] result;
         for (int i = 0; i < m_Classifiers.length; i++) {
-            result = getStaticPerClassifier(getClassifier(i), labeledData);
-            printStatics(result);
+            result = getStatisticsClassifier(getClassifier(i), labeledData);
+            printStatistics(result);
         }
     }
 
 
-    private void printStatics(int[] result) {
+    public void evaluationWithMajorityVoting(Instances labeledData) {
+        int[] result = new int[4];
+        for (int i = 0; i < labeledData.numInstances(); i++) {
+            try {
+                if (instanceMajorityVoting(labeledData.instance(i)) == DecisionMaker.IS_OWNER) {
+                    if (labeledData.instance(i).classValue() == DecisionMaker.IS_OWNER)
+                        result[TRUE_POSITIVE]++;
+                    else
+                        result[FALSE_POSITIVE]++;
+                } else {
+                    if (labeledData.instance(i).classValue() == DecisionMaker.IS_OTHER)
+                        result[TRUE_NEGATIVE]++;
+                    else
+                        result[FALSE_NEGATIVE]++;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        System.out.println("Majority Voting");
+        printStatistics(result);
+    }
+
+    private void printStatistics(int[] result) {
         int truePostive = result[TRUE_POSITIVE];
         int trueNegative = result[TRUE_NEGATIVE];
         int falsePostive = result[FALSE_POSITIVE];
@@ -121,18 +144,23 @@ public class DecisionMaker extends Vote {
         result2[2] = fMeasure;
         System.out.println("\n----------Result-------\n");
         System.out.println("Precisoin : " + Double.toString(result2[0])
-                + "Recall: " + Double.toString(result2[1]) + " F-Measure:"
+                + " Recall: " + Double.toString(result2[1]) + " F-Measure:"
                 + result2[2]);
-
-
+        int total = trueNegative + truePostive + falseNegative + falsePostive ;
+        double far  = (double) falsePostive / total ;
+        double frr  = (double) falseNegative / total ;
+        System.out.println("\n FAR : "+ Double.toString(far) + " FRR :" + Double.toString(frr));
     }
 
-    private int[] getStaticPerClassifier(Classifier classifier,
-                                         Instances labeledData) {
+    /**
+     * @param classifier
+     * @param labeledData instances with label
+     * @return int array[] of evaluation result
+     */
+    private int[] getStatisticsClassifier(Classifier classifier,
+                                          Instances labeledData) {
         int[] result = new int[4];
-        int classType = 0;
-
-
+        int classType;
         for (int i = 0; i < labeledData.numInstances(); i++) {
             try {
                 classType = (int) classifier.classifyInstance(labeledData

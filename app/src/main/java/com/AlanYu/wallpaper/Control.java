@@ -173,6 +173,8 @@ public class Control extends Activity {
     }
 
     private void setPreferences() {
+
+
         settings = getSharedPreferences("Preference", 0);
         Editor editor = settings.edit();
         editor.clear();
@@ -188,6 +190,7 @@ public class Control extends Activity {
             editor.putBoolean("Experiment", true);
         }
 
+        editor.putFloat("Threshold", Float.valueOf(threshold.getText().toString()));
         editor.putString("name", userType.getText().toString());
         editor.commit();
     }
