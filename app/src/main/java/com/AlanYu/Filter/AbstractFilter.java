@@ -81,7 +81,7 @@ public abstract class AbstractFilter {
         Attribute attribute2 = new Attribute("y");
         Attribute attribute3 = new Attribute("pressure");
         Attribute attribute4 = new Attribute("size");
-
+        Attribute attribute5 = new Attribute("timestamp");
         // nominal attribute along with its values
 
         // declare class attribute
@@ -91,11 +91,12 @@ public abstract class AbstractFilter {
         Attribute classAttribute = new Attribute("the class", fvClassVal);
 
         // Declare feature vector
-        fvWekaAttributes = new FastVector(5);
+        fvWekaAttributes = new FastVector(6);
         fvWekaAttributes.addElement(attribute1);
         fvWekaAttributes.addElement(attribute2);
         fvWekaAttributes.addElement(attribute3);
         fvWekaAttributes.addElement(attribute4);
+        fvWekaAttributes.addElement(attribute5);
         fvWekaAttributes.addElement(classAttribute);
 
         dataUnLabeled = new Instances("TestInstances", getFvWekaAttributes(),

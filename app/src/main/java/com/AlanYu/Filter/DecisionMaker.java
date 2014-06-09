@@ -17,7 +17,6 @@ public class DecisionMaker extends Vote {
 
     public static final int TRAINING = 0;
     public static final int TEST = 1;
-    public static final int COLLECT = 2;
     public static final int IS_OWNER = 0;
     public static final int IS_OTHER = 1;
     public static final int TRUE_POSITIVE = 0;
@@ -40,6 +39,9 @@ public class DecisionMaker extends Vote {
         init();
     }
 
+    /**
+     * init : will set five classifiers and set each option and setFeature setting
+     */
     private void init() {
         j48 = new J48Classifier();
         knn = new kNNClassifier();
@@ -78,18 +80,30 @@ public class DecisionMaker extends Vote {
 
     ;
 
+    /**
+     * get predicted lable of unlabeled instances , for decision purpose
+     *
+     * @param unLabelData
+     * @return
+     */
     public int getFinalLabel(Instances unLabelData) {
         return predictionInstances(unLabelData);
     }
 
 
+    /**
+     * printout the evaluatoin result per classisifer
+     *
+     * @param labeledData
+     */
+
     public void evaluation(Instances labeledData) {
-        int[] result = getStatisticsClassifier(this, labeledData);
+        int[] result = getStatisticsPerClassifier(this, labeledData);
         printStatistics(result);
     }
 
     /**
-     * print every classifier evaluation result
+     * print every classifier evaluation result  ( per touch event evaluation )
      *
      * @param labeledData
      * @throws Exception
@@ -98,12 +112,16 @@ public class DecisionMaker extends Vote {
             throws Exception {
         int[] result;
         for (int i = 0; i < m_Classifiers.length; i++) {
-            result = getStatisticsClassifier(getClassifier(i), labeledData);
+            result = getStatisticsPerClassifier(getClassifier(i), labeledData);
             printStatistics(result);
         }
     }
 
-
+    /**
+     * print out the evaluatoin of the Majority Voting Policy
+     *
+     * @param labeledData
+     */
     public void evaluationWithMajorityVoting(Instances labeledData) {
         int[] result = new int[4];
         for (int i = 0; i < labeledData.numInstances(); i++) {
@@ -127,7 +145,12 @@ public class DecisionMaker extends Vote {
         printStatistics(result);
     }
 
-    private void printStatistics(int[] result) {
+    /**
+     * print Statistics of the result array which has tp tn fp fn value , and print out the precision , recall  , F-measure , FAR , FRR  , ERR value
+     *
+     * @param result integer array
+     */
+    public void printStatistics(int[] result) {
         int truePostive = result[TRUE_POSITIVE];
         int trueNegative = result[TRUE_NEGATIVE];
         int falsePostive = result[FALSE_POSITIVE];
@@ -146,19 +169,21 @@ public class DecisionMaker extends Vote {
         System.out.println("Precisoin : " + Double.toString(result2[0])
                 + " Recall: " + Double.toString(result2[1]) + " F-Measure:"
                 + result2[2]);
-        int total = trueNegative + truePostive + falseNegative + falsePostive ;
-        double far  = (double) falsePostive / total ;
-        double frr  = (double) falseNegative / total ;
-        System.out.println("\n FAR : "+ Double.toString(far) + " FRR :" + Double.toString(frr));
+        int total = trueNegative + truePostive + falseNegative + falsePostive;
+        double far = (double) falsePostive / total;
+        double frr = (double) falseNegative / total;
+        System.out.println("\n FAR : " + Double.toString(far) + " FRR :" + Double.toString(frr));
     }
 
     /**
+     * get integer array has tp tn fp fn value with labeled data
+     *
      * @param classifier
      * @param labeledData instances with label
-     * @return int array[] of evaluation result
+     * @return int array[] of evaluation result which has tp tn fp fn value
      */
-    private int[] getStatisticsClassifier(Classifier classifier,
-                                          Instances labeledData) {
+    private int[] getStatisticsPerClassifier(Classifier classifier,
+                                             Instances labeledData) {
         int[] result = new int[4];
         int classType;
         for (int i = 0; i < labeledData.numInstances(); i++) {
@@ -184,10 +209,15 @@ public class DecisionMaker extends Vote {
     }
 
 
+    /**
+     * prediction policy of continous unlabeled data and return classType by comparation with threshold
+     * this policy return label whether the precision is bigger than threshold or not
+     * @param unLabelData
+     * @return
+     */
     public int predictionInstances(Instances unLabelData) {
         int ownerLabelNumber = 0;
         int otherLabelNumber = 0;
-        Log.d("DecisionMaker", "Predicting Label");
         int classtype = 0;
         for (int i = 0; i < unLabelData.numInstances(); i++) {
             try {
@@ -203,16 +233,32 @@ public class DecisionMaker extends Vote {
         }
         double precision = (double) ownerLabelNumber
                 / (ownerLabelNumber + otherLabelNumber);
-        if (precision > this.getThreshold())
+
+        System.out.println("Predicting Label : Number of owner votes:"+ownerLabelNumber+ "Number of other votes : "+otherLabelNumber );
+        /* with threshold policy */
+//        if (precision > this.getThreshold())
+//            return IS_OWNER;
+//        else
+//            return IS_OTHER;
+
+        /* with winner take all policy */
+        if(ownerLabelNumber >= otherLabelNumber)
             return IS_OWNER;
         else
             return IS_OTHER;
     }
 
+
     public FastVector getWekaAttributes() {
         return j48.getFvWekaAttributes();
     }
 
+    /**
+     * prediction policy of per instance by Majority Voting
+     *
+     * @param currentInstance
+     * @return
+     */
     public int voteForInstance(Instance currentInstance) {
         dataUnLabeled = new Instances("TestInstances",
                 this.getFvWekaAttributes(), 10);
@@ -248,7 +294,7 @@ public class DecisionMaker extends Vote {
         Attribute attribute2 = new Attribute("y");
         Attribute attribute3 = new Attribute("pressure");
         Attribute attribute4 = new Attribute("size");
-
+        Attribute attribute5 = new Attribute("timestamp");
         // nominal attribute along with its values
 
         // declare class attribute
@@ -258,16 +304,22 @@ public class DecisionMaker extends Vote {
         Attribute classAttribute = new Attribute("the class", fvClassVal);
 
         // Declare feature vector
-        setFvWekaAttributes(new FastVector(5));
+        setFvWekaAttributes(new FastVector(6));
         getFvWekaAttributes().addElement(attribute1);
         getFvWekaAttributes().addElement(attribute2);
         getFvWekaAttributes().addElement(attribute3);
         getFvWekaAttributes().addElement(attribute4);
+        getFvWekaAttributes().addElement(attribute5);
         getFvWekaAttributes().addElement(classAttribute);
 
 
     }
 
+    /**
+     * print result array of precision of each class
+     *
+     * @param prediction
+     */
     public void printResult(double[] prediction) {
         System.out.println("\n Result " + this.classifierName
                 + "\n =========================\n");
@@ -286,6 +338,13 @@ public class DecisionMaker extends Vote {
         this.fvWekaAttributes = fvWekaAttributes;
     }
 
+    /**
+     * prediction policy of per instance using Majority Voting
+     *
+     * @param instance
+     * @return
+     * @throws Exception
+     */
     public int instanceMajorityVoting(Instance instance) throws Exception {
 
         double[] probs = new double[instance.classAttribute().numValues()];
@@ -344,4 +403,5 @@ public class DecisionMaker extends Vote {
     public void setThreshold(double threshold) {
         this.threshold = threshold;
     }
+
 }
