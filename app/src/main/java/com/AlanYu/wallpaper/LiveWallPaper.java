@@ -43,8 +43,8 @@ import weka.core.Instances;
 public class LiveWallPaper extends WallpaperService {
 
     /*
-     * Parameters for Database Query
-     */
+                     * Parameters for Database Query
+                     */
     // TODO Refactor code
     private static final String TOUCH_TABLE_NAME = "TOUCH";
     private static final String ID = "_ID";
@@ -57,6 +57,10 @@ public class LiveWallPaper extends WallpaperService {
     private static final String TIMESTAMP = "TIMESTAMP";
     private static final String OWNER_LABEL = "owner";
     private static final String OTHER_LABEL = "other";
+    public static final int PERIOD = 15000;
+    public static final double SPLIT_PERCENTAGE = 0.4;
+    public static final int NUMBER_OF_TRAINGING_INSTANCES = 500;
+
     /* Parameters from Control Activity */
     private static float THRESHOLD;
     private static String nowLabel;
@@ -66,6 +70,7 @@ public class LiveWallPaper extends WallpaperService {
     PowerManager powerManager;
     DevicePolicyManager mDPM;
     ComponentName mDeviceAdminSample;
+    Vector <Double>timeStamp ;
     private boolean is_experiment = false;
     private int mode = DecisionMaker.TEST;
     private int pid = 0;
@@ -202,33 +207,20 @@ public class LiveWallPaper extends WallpaperService {
     private void readDatabase() {
         DBHelper db = new DBHelper(this);
         SQLiteDatabase readSource = db.getReadableDatabase();
-        Cursor cursor = readSource.query(TOUCH_TABLE_NAME, new String[]{ID,
-                        X, Y, PRESSURE, LABEL, SIZE, TIMESTAMP, ACTION_TYPE}, null,
-                null, null, null, null
-        );
+        Cursor cursor = null;
+        if (readSource != null) {
+            cursor = readSource.query(TOUCH_TABLE_NAME, new String[]{ID,
+                            X, Y, PRESSURE, LABEL, SIZE, TIMESTAMP, ACTION_TYPE}, null,
+                    null, null, null, null
+            );
+        }
         Log.d("readDatabase", "reading database");
         FastVector fv = decisionMaker.getWekaAttributes();
-
         try {
             if (cursor.moveToFirst()) {
                 do {
-//                    TouchDataNode touchData = new TouchDataNode();
-//                    touchData
-//                            .setId(cursor.getString(cursor.getColumnIndex(ID)));
-//                    touchData.setX(cursor.getString(cursor.getColumnIndex(X)));
-//                    touchData.setY(cursor.getString(cursor.getColumnIndex(Y)));
-//                    touchData.setSize(cursor.getString(cursor
-//                            .getColumnIndex(SIZE)));
-//                    touchData.setPressure(cursor.getString(cursor
-//                            .getColumnIndex(PRESSURE)));
-//                    touchData.setTimestamp(cursor.getString(cursor
-//                            .getColumnIndex(TIMESTAMP)));
-//                    touchData.setLabel(cursor.getString(cursor
-//                            .getColumnIndex(LABEL)));
-//                    touchData.setActionType(cursor.getString(cursor
-//                            .getColumnIndex(ACTION_TYPE)));
-
-                    if (cursor.getString(cursor.getColumnIndex(LABEL)).contains("domo") || cursor.getString(cursor.getColumnIndex(LABEL)).contains("Jorge") || cursor.getString(cursor.getColumnIndex(LABEL)).contains("CY")) {
+                    String tmplabel = cursor.getString(cursor.getColumnIndex(LABEL)) ;
+                    if (tmplabel.contains("domo")  || tmplabel.contains("Jorge") || tmplabel.contains("CY")) {
                         //skip  cuz their data has problem
                     } else {
                         Instance iExample = new DenseInstance(decisionMaker.getWekaAttributes().size());
@@ -245,17 +237,14 @@ public class LiveWallPaper extends WallpaperService {
                         iExample.setValue((Attribute) fv.elementAt(3), Double
                                 .valueOf(cursor.getString(cursor
                                         .getColumnIndex(SIZE))));
-
-                        iExample.setValue((Attribute) fv.elementAt(4), Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP))));
-                        if (cursor.getString(cursor
-                                .getColumnIndex(LABEL)).contains("owner"))
-                            iExample.setValue((Attribute) fv.elementAt(5),
+                        timeStamp.add(Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP))));
+                        if (tmplabel.contains("owner"))
+                            iExample.setValue((Attribute) fv.elementAt(4),
                                     cursor.getString(cursor
                                             .getColumnIndex(LABEL))
                             );
-
                         else
-                            iExample.setValue((Attribute) fv.elementAt(5),
+                            iExample.setValue((Attribute) fv.elementAt(4),
                                     OTHER_LABEL);
 
                         trainingData.add(iExample);
@@ -274,6 +263,7 @@ public class LiveWallPaper extends WallpaperService {
 
     private void init() {
         // Build System Manager
+        timeStamp= new Vector();
         keyguardManager = (KeyguardManager) getSystemService(Activity.KEYGUARD_SERVICE);
         keylock = keyguardManager.newKeyguardLock(Activity.KEYGUARD_SERVICE);
         powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -330,11 +320,10 @@ public class LiveWallPaper extends WallpaperService {
         Instances inst = trainingData;
         Random ran = new Random(System.currentTimeMillis());
 //        inst.randomize(ran);   dont random distribution
-        float percent = (float) 0.4;
-        int trainSize = (int) Math.round(trainingData.numInstances() * percent);
-        int testSize = trainingData.numInstances() - trainSize;
-        trainingData = new Instances(inst, 0, 500);
-        testData = new Instances(inst, 501, testSize);
+        int trainSize = (int) Math.round(trainingData.numInstances() * SPLIT_PERCENTAGE);
+        int testSize = trainingData.numInstances() - NUMBER_OF_TRAINGING_INSTANCES;
+        trainingData = new Instances(inst, 0, NUMBER_OF_TRAINGING_INSTANCES);
+        testData = new Instances(inst, NUMBER_OF_TRAINGING_INSTANCES+1, testSize-1);
         Log.d("split", "testData size " + testData.numInstances()
                 + "traindata size " + trainingData.numInstances());
     }
@@ -347,7 +336,7 @@ public class LiveWallPaper extends WallpaperService {
      */
     private void setInstancesFromEvent(MotionEvent event, Instances instances) {
         Instance iExample = new
-                DenseInstance(5);
+                DenseInstance(DecisionMaker.ATTRIBUTE_SIZE);
         FastVector fv = decisionMaker.getWekaAttributes();
         iExample.setValue((Attribute) fv.elementAt(0), (double) event.getX());
         iExample.setValue((Attribute) fv.elementAt(1), (double) event.getY());
@@ -418,31 +407,36 @@ public class LiveWallPaper extends WallpaperService {
                             //TODO  1. lock screen 2.
                         } else
                             Log.d("Decision making ", "You are owner");
-                        // TODO   1. add 1 success access to database
+                        // TODO   1. add 1 success access to database for the future to deciside when time to retraining classifier
+                    }
+                    else if (mode == DecisionMaker.TRAINING){
+                        startService(intent);
+                        Log.d("LiveWall paper","mode is training and start intent");
                     }
                     // TODO to record the recently precision and if precision decrease
                     // always drop below
                     // 0.5 remember to add some retraining policy
                     // TODO below is lock screen policy
-                    if ((DecisionMaker.IS_OTHER == decisionMaker.getFinalLabel(testData))) {
-                        keylock.reenableKeyguard();
-                        mDPM.lockNow();
-
-//                        if (keyguardManager.) {
-//                            Log.d("lock screen",
-//                                    "You are not the owner but u just unlock screen");
-//                            keylock.disableKeyguard();
-//                        } else {
-//                            Log.d("lock screen", "You are not the user");
-//                            keylock.reenableKeyguard();
-//                            mDPM.lockNow();
-//                        }
-                        // You are Owner
-                    } else {
-                        keylock.disableKeyguard();
-                        Log.d("invisible",
-                                "it's owner and apps is also  in protected list ");
-                    }
+//                    if ((DecisionMaker.IS_OTHER == decisionMaker.getFinalLabel(testData))) {
+//                        keylock.reenableKeyguard();
+//                        mDPM.lockNow();
+//
+//                        /* below code is manage the screen */
+////                        if (keyguardManager.) {
+////                            Log.d("lock screen",
+////                                    "You are not the owner but u just unlock screen");
+////                            keylock.disableKeyguard();
+////                        } else {
+////                            Log.d("lock screen", "You are not the user");
+////                            keylock.reenableKeyguard();
+////                            mDPM.lockNow();
+////                        }
+//                        // You are Owner
+//                    } else {
+//                        keylock.disableKeyguard();
+//                        Log.d("invisible",
+//                                "it's owner and apps is also  in protected list ");
+//                    }
                 }
             }
             super.onVisibilityChanged(visible);
@@ -457,47 +451,28 @@ public class LiveWallPaper extends WallpaperService {
             int[] result = new int[4];
             try {
                 int dataSize = testData.numInstances()-1;
-                for (int i = 0; i < dataSize ; i++) {
+                int startIndex = trainingData.numInstances();
+                for (int i = 0; i < dataSize ; i++,startIndex++) {
                     Log.d("decide per touch"," in one access i:"+i+ "label = "+testData.instance(i).classValue());
                     if (testData.instance(i).classValue() == testData.instance(i + 1).classValue()) {
-                        if ((testData.instance(i + 1).value(4) - testData.instance(i).value(4)) < 15000) {
+                        if (timeStamp.elementAt(startIndex+1) - timeStamp.elementAt(startIndex) < PERIOD) {
                             accessData.add(testData.get(i));
-                            // keep add to access Data instance
                         } else {
                             accessData.add(testData.get(i));
                             Log.d("one access", "now i = "+i+"Number of accessData instances :"+String.valueOf(accessData.numInstances()));
                             int label = decisionMaker.getFinalLabel(accessData);
-                            if (label == DecisionMaker.IS_OWNER) {
-                                if (testData.instance(i).classValue() == DecisionMaker.IS_OWNER)
-                                    result[DecisionMaker.TRUE_POSITIVE]++;
-                                else
-                                    result[DecisionMaker.FALSE_POSITIVE]++;
-                            } else {
-                                if (testData.instance(i).classValue() == DecisionMaker.IS_OTHER)
-                                    result[DecisionMaker.TRUE_NEGATIVE]++;
-                                else
-                                    result[DecisionMaker.FALSE_NEGATIVE]++;
-                            }
+                            int trueLabel = (int) testData.instance(i).classValue();
+                            result = decisionMaker.evaluation(trueLabel,label,result);
                             accessData.clear();
                         }
                     } else {
                         accessData.add(testData.get(i));
                         Log.d("one access", "now i = "+i+"Number of accessData instances :"+String.valueOf(accessData.numInstances()));
                         int label = decisionMaker.getFinalLabel(accessData);
-                        if (label == DecisionMaker.IS_OWNER) {
-                            if (testData.instance(i).classValue() == DecisionMaker.IS_OWNER)
-                                result[DecisionMaker.TRUE_POSITIVE]++;
-                            else
-                                result[DecisionMaker.FALSE_POSITIVE]++;
-                        } else {
-                            if (testData.instance(i).classValue() == DecisionMaker.IS_OTHER)
-                                result[DecisionMaker.TRUE_NEGATIVE]++;
-                            else
-                                result[DecisionMaker.FALSE_NEGATIVE]++;
-                        }
+                        int trueLabel = (int) testData.instance(i).classValue();
+                        result = decisionMaker.evaluation(trueLabel,label,result);
                         accessData.clear();
                     }
-
                 }
                 decisionMaker.printStatistics(result);
             } catch (Exception e) {

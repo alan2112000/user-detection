@@ -23,6 +23,7 @@ public class DecisionMaker extends Vote {
     public static final int TRUE_NEGATIVE = 1;
     public static final int FALSE_POSITIVE = 2;
     public static final int FALSE_NEGATIVE = 3;
+    public static final int ATTRIBUTE_SIZE = 5;
 
     private J48Classifier j48;
     private kNNClassifier knn;
@@ -126,23 +127,37 @@ public class DecisionMaker extends Vote {
         int[] result = new int[4];
         for (int i = 0; i < labeledData.numInstances(); i++) {
             try {
-                if (instanceMajorityVoting(labeledData.instance(i)) == DecisionMaker.IS_OWNER) {
-                    if (labeledData.instance(i).classValue() == DecisionMaker.IS_OWNER)
-                        result[TRUE_POSITIVE]++;
-                    else
-                        result[FALSE_POSITIVE]++;
-                } else {
-                    if (labeledData.instance(i).classValue() == DecisionMaker.IS_OTHER)
-                        result[TRUE_NEGATIVE]++;
-                    else
-                        result[FALSE_NEGATIVE]++;
-                }
+                int tmpLabel  = instanceMajorityVoting(labeledData.instance(i));
+                int trueLabel = (int) labeledData.instance(i).classValue();
+                evaluation(trueLabel, tmpLabel,result);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         System.out.println("Majority Voting");
         printStatistics(result);
+    }
+
+    /** accumulate the evaluation result
+     * acculatede
+     * @param trueLabel
+     * @param tmpLabel
+     * @param result
+     * @return
+     */
+    public int[] evaluation(int trueLabel, int tmpLabel,int[] result) {
+        if (tmpLabel == DecisionMaker.IS_OWNER) {
+            if (trueLabel == DecisionMaker.IS_OWNER)
+                result[TRUE_POSITIVE]++;
+            else
+                result[FALSE_POSITIVE]++;
+        } else {
+            if (trueLabel == DecisionMaker.IS_OTHER)
+                result[TRUE_NEGATIVE]++;
+            else
+                result[FALSE_NEGATIVE]++;
+        }
+        return result;
     }
 
     /**
@@ -215,7 +230,7 @@ public class DecisionMaker extends Vote {
      * @param unLabelData
      * @return
      */
-    public int predictionInstances(Instances unLabelData) {
+    private int predictionInstances(Instances unLabelData) {
         int ownerLabelNumber = 0;
         int otherLabelNumber = 0;
         int classtype = 0;
@@ -236,16 +251,16 @@ public class DecisionMaker extends Vote {
 
         System.out.println("Predicting Label : Number of owner votes:"+ownerLabelNumber+ "Number of other votes : "+otherLabelNumber );
         /* with threshold policy */
-//        if (precision > this.getThreshold())
-//            return IS_OWNER;
-//        else
-//            return IS_OTHER;
-
-        /* with winner take all policy */
-        if(ownerLabelNumber >= otherLabelNumber)
+        if (precision > this.getThreshold())
             return IS_OWNER;
         else
             return IS_OTHER;
+
+        /* with winner take all policy */
+//        if(ownerLabelNumber >= otherLabelNumber)
+//            return IS_OWNER;
+//        else
+//            return IS_OTHER;
     }
 
 
@@ -294,7 +309,7 @@ public class DecisionMaker extends Vote {
         Attribute attribute2 = new Attribute("y");
         Attribute attribute3 = new Attribute("pressure");
         Attribute attribute4 = new Attribute("size");
-        Attribute attribute5 = new Attribute("timestamp");
+//        Attribute attribute5 = new Attribute("timestamp");
         // nominal attribute along with its values
 
         // declare class attribute
@@ -304,12 +319,12 @@ public class DecisionMaker extends Vote {
         Attribute classAttribute = new Attribute("the class", fvClassVal);
 
         // Declare feature vector
-        setFvWekaAttributes(new FastVector(6));
+        setFvWekaAttributes(new FastVector(ATTRIBUTE_SIZE));
         getFvWekaAttributes().addElement(attribute1);
         getFvWekaAttributes().addElement(attribute2);
         getFvWekaAttributes().addElement(attribute3);
         getFvWekaAttributes().addElement(attribute4);
-        getFvWekaAttributes().addElement(attribute5);
+//        getFvWekaAttributes().addElement(attribute5);
         getFvWekaAttributes().addElement(classAttribute);
 
 
