@@ -88,7 +88,12 @@ public class DecisionMaker extends Vote {
      * @return
      */
     public int getFinalLabel(Instances unLabelData) {
-        return predictionInstances(unLabelData);
+//        return predictionInstances(unLabelData);
+        int[] voting = predictionByVoting(unLabelData);
+        if (voting[IS_OWNER] >= voting[IS_OTHER])
+            return IS_OWNER;
+        else
+            return IS_OTHER;
     }
 
 
@@ -127,9 +132,9 @@ public class DecisionMaker extends Vote {
         int[] result = new int[4];
         for (int i = 0; i < labeledData.numInstances(); i++) {
             try {
-                int tmpLabel  = instanceMajorityVoting(labeledData.instance(i));
+                int tmpLabel = instanceMajorityVoting(labeledData.instance(i));
                 int trueLabel = (int) labeledData.instance(i).classValue();
-                evaluation(trueLabel, tmpLabel,result);
+                evaluation(trueLabel, tmpLabel, result);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -138,14 +143,16 @@ public class DecisionMaker extends Vote {
         printStatistics(result);
     }
 
-    /** accumulate the evaluation result
+    /**
+     * accumulate the evaluation result
      * acculatede
+     *
      * @param trueLabel
      * @param tmpLabel
      * @param result
      * @return
      */
-    public int[] evaluation(int trueLabel, int tmpLabel,int[] result) {
+    public int[] evaluation(int trueLabel, int tmpLabel, int[] result) {
         if (tmpLabel == DecisionMaker.IS_OWNER) {
             if (trueLabel == DecisionMaker.IS_OWNER)
                 result[TRUE_POSITIVE]++;
@@ -205,17 +212,18 @@ public class DecisionMaker extends Vote {
             try {
                 classType = (int) classifier.classifyInstance(labeledData
                         .instance(i));
-                if (classType == labeledData.instance(i).classValue()) {
-                    if (classType == DecisionMaker.IS_OWNER)
-                        result[TRUE_POSITIVE]++;
-                    else
-                        result[TRUE_NEGATIVE]++;
-                } else {
-                    if (classType == DecisionMaker.IS_OWNER)
-                        result[FALSE_POSITIVE]++;
-                    else
-                        result[FALSE_NEGATIVE]++;
-                }
+                result = evaluation((int)labeledData.instance(i).classValue(), classType,result);
+//                if (classType == labeledData.instance(i).classValue()) {
+//                    if (classType == DecisionMaker.IS_OWNER)
+//                        result[TRUE_POSITIVE]++;
+//                    else
+//                        result[TRUE_NEGATIVE]++;
+//                } else {
+//                    if (classType == DecisionMaker.IS_OWNER)
+//                        result[FALSE_POSITIVE]++;
+//                    else
+//                        result[FALSE_NEGATIVE]++;
+//                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -223,10 +231,31 @@ public class DecisionMaker extends Vote {
         return result;
     }
 
+    /**
+     * prediction policy voting every instance by classifier and acculate every ticket and deciside the final label of per access
+     *
+     * @param unLabelData
+     * @return
+     */
+    private int[] predictionByVoting(Instances unLabelData) {
+        int[] voting = new int[2];
+        for (int i = 0; i < unLabelData.numInstances(); i++) {
+            for (int j = 0; j < m_Classifiers.length; j++) {
+                try {
+                    int classType = (int) getClassifier(j).classifyInstance(unLabelData.instance(i));
+                    voting[classType]++;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return voting;
+    }
 
     /**
      * prediction policy of continous unlabeled data and return classType by comparation with threshold
      * this policy return label whether the precision is bigger than threshold or not
+     *
      * @param unLabelData
      * @return
      */
@@ -249,7 +278,8 @@ public class DecisionMaker extends Vote {
         double precision = (double) ownerLabelNumber
                 / (ownerLabelNumber + otherLabelNumber);
 
-        System.out.println("Predicting Label : Number of owner votes:"+ownerLabelNumber+ "Number of other votes : "+otherLabelNumber );
+        System.out.println("Predicting Label : Number of owner votes:" + ownerLabelNumber + "Number of other votes : " + otherLabelNumber);
+        System.out.println("True label  = " + unLabelData.instance(0).classValue());
         /* with threshold policy */
         if (precision > this.getThreshold())
             return IS_OWNER;

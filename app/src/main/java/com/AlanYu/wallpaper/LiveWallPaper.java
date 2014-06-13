@@ -57,9 +57,9 @@ public class LiveWallPaper extends WallpaperService {
     private static final String TIMESTAMP = "TIMESTAMP";
     private static final String OWNER_LABEL = "owner";
     private static final String OTHER_LABEL = "other";
-    public static final int PERIOD = 15000;
+    public static final int PERIOD = 13000;
     public static final double SPLIT_PERCENTAGE = 0.4;
-    public static final int NUMBER_OF_TRAINGING_INSTANCES = 500;
+    public static final int NUMBER_OF_TRAINGING_INSTANCES = 1000;
 
     /* Parameters from Control Activity */
     private static float THRESHOLD;
@@ -70,7 +70,7 @@ public class LiveWallPaper extends WallpaperService {
     PowerManager powerManager;
     DevicePolicyManager mDPM;
     ComponentName mDeviceAdminSample;
-    Vector <Double>timeStamp ;
+    Vector<Double> timeStamp;
     private boolean is_experiment = false;
     private int mode = DecisionMaker.TEST;
     private int pid = 0;
@@ -219,8 +219,8 @@ public class LiveWallPaper extends WallpaperService {
         try {
             if (cursor.moveToFirst()) {
                 do {
-                    String tmplabel = cursor.getString(cursor.getColumnIndex(LABEL)) ;
-                    if (tmplabel.contains("domo")  || tmplabel.contains("Jorge") || tmplabel.contains("CY")) {
+                    String tmplabel = cursor.getString(cursor.getColumnIndex(LABEL));
+                    if (tmplabel.contains("domo") || tmplabel.contains("Jorge") || tmplabel.contains("CY")) {
                         //skip  cuz their data has problem
                     } else {
                         Instance iExample = new DenseInstance(decisionMaker.getWekaAttributes().size());
@@ -263,7 +263,7 @@ public class LiveWallPaper extends WallpaperService {
 
     private void init() {
         // Build System Manager
-        timeStamp= new Vector();
+        timeStamp = new Vector();
         keyguardManager = (KeyguardManager) getSystemService(Activity.KEYGUARD_SERVICE);
         keylock = keyguardManager.newKeyguardLock(Activity.KEYGUARD_SERVICE);
         powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -307,6 +307,7 @@ public class LiveWallPaper extends WallpaperService {
         SharedPreferences setting = getSharedPreferences("Preference", 0);
         nowLabel = setting.getString("name", OTHER_LABEL);
         THRESHOLD = setting.getFloat("Threshold", (float) 0.5);
+        decisionMaker.setThreshold(getThreshold());
         mode = setting.getInt("Mode", DecisionMaker.TEST);
         Log.d("sharePreference ", "is_experiment :" + is_experiment);
         is_experiment = setting.getBoolean("Experiment", false);
@@ -317,15 +318,25 @@ public class LiveWallPaper extends WallpaperService {
     }
 
     private void percentageSplit() {
+//        Instances inst = trainingData;
+//        Random ran = new Random(System.currentTimeMillis());
+//        int trainSize = (int) Math.round(trainingData.numInstances() * SPLIT_PERCENTAGE);
+//        int testSize = trainingData.numInstances() - NUMBER_OF_TRAINGING_INSTANCES;
+//        trainingData = new Instances(inst, 0, NUMBER_OF_TRAINGING_INSTANCES);
+//        testData = new Instances(inst, NUMBER_OF_TRAINGING_INSTANCES + 1, testSize - 1);
+//        Log.d("split", "testData size " + testData.numInstances()
+//                + "traindata size " + trainingData.numInstances());
+
         Instances inst = trainingData;
         Random ran = new Random(System.currentTimeMillis());
-//        inst.randomize(ran);   dont random distribution
+        inst.randomize(ran);
         int trainSize = (int) Math.round(trainingData.numInstances() * SPLIT_PERCENTAGE);
-        int testSize = trainingData.numInstances() - NUMBER_OF_TRAINGING_INSTANCES;
-        trainingData = new Instances(inst, 0, NUMBER_OF_TRAINGING_INSTANCES);
-        testData = new Instances(inst, NUMBER_OF_TRAINGING_INSTANCES+1, testSize-1);
+        int testSize = trainingData.numInstances() - trainSize;
+        trainingData = new Instances(inst, 0, trainSize);
+        testData = new Instances(inst,trainSize, testSize);
         Log.d("split", "testData size " + testData.numInstances()
                 + "traindata size " + trainingData.numInstances());
+
     }
 
     /**
@@ -359,8 +370,6 @@ public class LiveWallPaper extends WallpaperService {
 
                 if (is_experiment) {
                     try {
-                        Log.d("on create", "num of test instances" + testData.numInstances());
-                        Log.d("is_experiment", "start thread and caculate the result ");
                         Thread myThread = new CaculateThread();
                         myThread.start();
                     } catch (Exception e) {
@@ -408,10 +417,9 @@ public class LiveWallPaper extends WallpaperService {
                         } else
                             Log.d("Decision making ", "You are owner");
                         // TODO   1. add 1 success access to database for the future to deciside when time to retraining classifier
-                    }
-                    else if (mode == DecisionMaker.TRAINING){
+                    } else if (mode == DecisionMaker.TRAINING) {
                         startService(intent);
-                        Log.d("LiveWall paper","mode is training and start intent");
+                        Log.d("LiveWall paper", "mode is training and start intent");
                     }
                     // TODO to record the recently precision and if precision decrease
                     // always drop below
@@ -445,39 +453,67 @@ public class LiveWallPaper extends WallpaperService {
 
     public class CaculateThread extends Thread {
 
-        @Override
-        public void run() {
-            super.run();
-            int[] result = new int[4];
+        private void evaluationPerClassifierEveryInstances() {
             try {
-                int dataSize = testData.numInstances()-1;
-                int startIndex = trainingData.numInstances();
-                for (int i = 0; i < dataSize ; i++,startIndex++) {
-                    Log.d("decide per touch"," in one access i:"+i+ "label = "+testData.instance(i).classValue());
-                    if (testData.instance(i).classValue() == testData.instance(i + 1).classValue()) {
-                        if (timeStamp.elementAt(startIndex+1) - timeStamp.elementAt(startIndex) < PERIOD) {
-                            accessData.add(testData.get(i));
-                        } else {
-                            accessData.add(testData.get(i));
-                            Log.d("one access", "now i = "+i+"Number of accessData instances :"+String.valueOf(accessData.numInstances()));
-                            int label = decisionMaker.getFinalLabel(accessData);
-                            int trueLabel = (int) testData.instance(i).classValue();
-                            result = decisionMaker.evaluation(trueLabel,label,result);
-                            accessData.clear();
-                        }
-                    } else {
-                        accessData.add(testData.get(i));
-                        Log.d("one access", "now i = "+i+"Number of accessData instances :"+String.valueOf(accessData.numInstances()));
-                        int label = decisionMaker.getFinalLabel(accessData);
-                        int trueLabel = (int) testData.instance(i).classValue();
-                        result = decisionMaker.evaluation(trueLabel,label,result);
-                        accessData.clear();
-                    }
-                }
-                decisionMaker.printStatistics(result);
+                decisionMaker.evaluationEachClassifier(testData);
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+
+        public void evaluatoinPerAccess() {
+            super.run();
+            int[] result = new int[4];
+            try {
+                int startIndex = trainingData.numInstances();
+                accessData.add(testData.get(0));
+                for (int i = 1; i < testData.numInstances(); i++, startIndex++) {
+//                    Log.d("decide per touch"," in one access i:"+i+ "label = "+testData.instance(i).classValue());
+                    if (testData.instance(i).classValue() == testData.instance(i - 1).classValue()) {
+                        if (timeStamp.elementAt(startIndex) - timeStamp.elementAt(startIndex - 1) < PERIOD) {
+                            accessData.add(testData.get(i));
+                        } else {
+                            int trueLabel = (int) testData.instance(i - 1).classValue();
+                            if (accessData.numInstances() >= 2) {
+                                Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
+                                int label = decisionMaker.getFinalLabel(accessData);
+                                result = decisionMaker.evaluation(trueLabel, label, result);
+                            } else
+                                System.out.println("access data smaller than 2 ");
+                            accessData.clear();
+                            accessData.add(testData.get(i));
+                        }
+                    } else {
+                        int trueLabel = (int) testData.instance(i - 1).classValue();
+                        if (accessData.numInstances() >= 2) {
+                            Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
+                            int label = decisionMaker.getFinalLabel(accessData);
+                            result = decisionMaker.evaluation(trueLabel, label, result);
+                        } else
+                            System.out.println("access data smaller than 2 ");
+                        accessData.clear();
+                        accessData.add(testData.get(i));
+                    }
+                }
+                System.out.println(" Total test instances number is : " + testData.numInstances() + "Training instances number is " + trainingData.numInstances());
+                int owner = 0;
+                for (int i = 0; i < trainingData.numInstances(); i++) {
+                    if (trainingData.instance(i).classValue() == DecisionMaker.IS_OWNER) {
+                        owner++;
+                    }
+                }
+                System.out.println("Training data owner instances is : " + owner);
+                decisionMaker.printStatistics(result);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+//           evaluatoinPerAccess();
+            evaluationPerClassifierEveryInstances();
         }
     }
 
