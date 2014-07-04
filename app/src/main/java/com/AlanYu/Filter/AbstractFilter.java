@@ -27,9 +27,9 @@ public abstract class AbstractFilter {
     protected KStar kstar;
     protected DecisionTable dt;
     protected RandomForest randomF;
-    public final static int CLASS_INDEX_TOUCH = 4;
+    public final static int CLASS_INDEX_TOUCH = 7;
     public final static int CLASS_INDEX_AC = 3;
-    public final static int ATTRIBUTE_SIZE = 5;
+    public final static int ATTRIBUTE_SIZE = 8;
     protected String classifierName = null;
 
     protected abstract void setOption();
@@ -82,6 +82,9 @@ public abstract class AbstractFilter {
         Attribute attribute2 = new Attribute("y");
         Attribute attribute3 = new Attribute("pressure");
         Attribute attribute4 = new Attribute("size");
+        Attribute attribute5 = new Attribute("time");
+        Attribute attribute6 = new Attribute("velocity");
+        Attribute attribute7 = new Attribute("type");
 //        Attribute attribute5 = new Attribute("timestamp");
         // nominal attribute along with its values
 
@@ -97,7 +100,9 @@ public abstract class AbstractFilter {
         fvWekaAttributes.addElement(attribute2);
         fvWekaAttributes.addElement(attribute3);
         fvWekaAttributes.addElement(attribute4);
-//        fvWekaAttributes.addElement(attribute5);
+        fvWekaAttributes.addElement(attribute5);
+        fvWekaAttributes.addElement(attribute6);
+        fvWekaAttributes.addElement(attribute7);
         fvWekaAttributes.addElement(classAttribute);
 
         dataUnLabeled = new Instances("TestInstances", getFvWekaAttributes(),

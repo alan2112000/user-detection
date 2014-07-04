@@ -89,23 +89,11 @@ public class DecisionMaker extends Vote {
      */
     public int getFinalLabel(Instances unLabelData) {
 //        return predictionInstances(unLabelData);
-        int[] voting = predictionByVoting(unLabelData);
-        if (voting[IS_OWNER] >= voting[IS_OTHER])
+        int[] votes = predictionByAccumulatingVotes(unLabelData);
+        if (votes[IS_OWNER] >= votes[IS_OTHER])
             return IS_OWNER;
         else
             return IS_OTHER;
-    }
-
-
-    /**
-     * printout the evaluatoin result per classisifer
-     *
-     * @param labeledData
-     */
-
-    public void evaluation(Instances labeledData) {
-        int[] result = getStatisticsPerClassifier(this, labeledData);
-        printStatistics(result);
     }
 
     /**
@@ -134,7 +122,7 @@ public class DecisionMaker extends Vote {
             try {
                 int tmpLabel = instanceMajorityVoting(labeledData.instance(i));
                 int trueLabel = (int) labeledData.instance(i).classValue();
-                evaluation(trueLabel, tmpLabel, result);
+                result = evaluation(trueLabel, tmpLabel, result);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -213,17 +201,6 @@ public class DecisionMaker extends Vote {
                 classType = (int) classifier.classifyInstance(labeledData
                         .instance(i));
                 result = evaluation((int)labeledData.instance(i).classValue(), classType,result);
-//                if (classType == labeledData.instance(i).classValue()) {
-//                    if (classType == DecisionMaker.IS_OWNER)
-//                        result[TRUE_POSITIVE]++;
-//                    else
-//                        result[TRUE_NEGATIVE]++;
-//                } else {
-//                    if (classType == DecisionMaker.IS_OWNER)
-//                        result[FALSE_POSITIVE]++;
-//                    else
-//                        result[FALSE_NEGATIVE]++;
-//                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -232,28 +209,28 @@ public class DecisionMaker extends Vote {
     }
 
     /**
-     * prediction policy voting every instance by classifier and acculate every ticket and deciside the final label of per access
+     * prediction policy voting every instance by classifier and accumulate every ticket and deciside the final label of per access
      *
      * @param unLabelData
      * @return
      */
-    private int[] predictionByVoting(Instances unLabelData) {
-        int[] voting = new int[2];
+    private int[] predictionByAccumulatingVotes(Instances unLabelData) {
+        int[] votes = new int[2];
         for (int i = 0; i < unLabelData.numInstances(); i++) {
             for (int j = 0; j < m_Classifiers.length; j++) {
                 try {
                     int classType = (int) getClassifier(j).classifyInstance(unLabelData.instance(i));
-                    voting[classType]++;
+                    votes[classType]++;
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
         }
-        return voting;
+        return votes;
     }
 
     /**
-     * prediction policy of continous unlabeled data and return classType by comparation with threshold
+     * Prediction policy of continous unlabeled data and return classType by comparation with threshold policy
      * this policy return label whether the precision is bigger than threshold or not
      *
      * @param unLabelData
@@ -265,8 +242,7 @@ public class DecisionMaker extends Vote {
         int classtype = 0;
         for (int i = 0; i < unLabelData.numInstances(); i++) {
             try {
-                classtype = this
-                        .instanceMajorityVoting(unLabelData.instance(i));
+                classtype = this.voteForInstance(unLabelData.instance(i));
             } catch (Exception e) {
                 e.printStackTrace();
             }

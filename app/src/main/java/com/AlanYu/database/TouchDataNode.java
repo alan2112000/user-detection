@@ -21,40 +21,40 @@ public class TouchDataNode {
 		this.id = id;
 	}
 
-	public String getX() {
-		return x;
+	public int getX() {
+		return Integer.valueOf(x);
 	}
 
 	public void setX(String x) {
 		this.x = x;
 	}
 
-	public String getY() {
-		return y;
+	public int getY() {
+		return Integer.valueOf(y);
 	}
 
 	public void setY(String y) {
 		this.y = y;
 	}
 
-	public String getSize() {
-		return size;
+	public double getSize() {
+		return Double.valueOf(this.size);
 	}
 
 	public void setSize(String size) {
 		this.size = size;
 	}
 
-	public String getPressure() {
-		return pressure;
+	public double getPressure() {
+		return Double.valueOf(pressure);
 	}
 
 	public void setPressure(String pressure) {
 		this.pressure = pressure;
 	}
 
-	public String getTimestamp() {
-		return timestamp;
+	public double getTimestamp() {
+		return Double.valueOf(timestamp);
 	}
 
 	public void setTimestamp(String timestamp) {
@@ -69,8 +69,8 @@ public class TouchDataNode {
 		this.label = label;
 	}
 
-	public String getActionType() {
-		return actionType;
+	public int getActionType() {
+		return Integer.valueOf(this.actionType);
 	}
 
 	public void setActionType(String actionType) {

@@ -39,6 +39,10 @@ import weka.core.FastVector;
 import weka.core.Instance;
 import weka.core.Instances;
 
+import static android.view.MotionEvent.ACTION_DOWN;
+import static android.view.MotionEvent.ACTION_MOVE;
+import static android.view.MotionEvent.ACTION_UP;
+
 @SuppressLint("ShowToast")
 public class LiveWallPaper extends WallpaperService {
 
@@ -60,6 +64,8 @@ public class LiveWallPaper extends WallpaperService {
     public static final int PERIOD = 13000;
     public static final double SPLIT_PERCENTAGE = 0.4;
     public static final int NUMBER_OF_TRAINGING_INSTANCES = 1000;
+    public static final int TOUCH = 0 ;
+    public static final int SLIDE = 1 ;
 
     /* Parameters from Control Activity */
     private static float THRESHOLD;
@@ -78,6 +84,7 @@ public class LiveWallPaper extends WallpaperService {
     private Instances trainingData;
     private Instances testData;
     private Instances accessData;
+    Vector<Instances> perAccessData;
     private J48Classifier j48;
     private DecisionMaker decisionMaker;
     private String[] PROTECTED_LIST = {"vending", "gm", "mms", "contact",
@@ -153,10 +160,8 @@ public class LiveWallPaper extends WallpaperService {
         return notFound;
     }
 
-    /*
-     * ===================================================================== Get
-     * Now Running Apps Information
-     * =====================================================================
+    /**
+     * geting the information of running apps
      */
     private void getAppsInfo() {
         ActivityManager am = (ActivityManager) this
@@ -216,49 +221,184 @@ public class LiveWallPaper extends WallpaperService {
         }
         Log.d("readDatabase", "reading database");
         FastVector fv = decisionMaker.getWekaAttributes();
-        try {
-            if (cursor.moveToFirst()) {
-                do {
-                    String tmplabel = cursor.getString(cursor.getColumnIndex(LABEL));
-                    if (tmplabel.contains("domo") || tmplabel.contains("Jorge") || tmplabel.contains("CY")) {
-                        //skip  cuz their data has problem
-                    } else {
-                        Instance iExample = new DenseInstance(decisionMaker.getWekaAttributes().size());
-
-                        iExample.setValue((Attribute) fv.elementAt(0), Double
-                                .valueOf(cursor.getString(cursor
-                                        .getColumnIndex(X))));
-                        iExample.setValue((Attribute) fv.elementAt(1), Double
-                                .valueOf(cursor.getString(cursor
-                                        .getColumnIndex(Y))));
-                        iExample.setValue((Attribute) fv.elementAt(2), Double
-                                .valueOf(cursor.getString(cursor
-                                        .getColumnIndex(PRESSURE))));
-                        iExample.setValue((Attribute) fv.elementAt(3), Double
-                                .valueOf(cursor.getString(cursor
-                                        .getColumnIndex(SIZE))));
-                        timeStamp.add(Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP))));
-                        if (tmplabel.contains("owner"))
-                            iExample.setValue((Attribute) fv.elementAt(4),
-                                    cursor.getString(cursor
-                                            .getColumnIndex(LABEL))
-                            );
-                        else
-                            iExample.setValue((Attribute) fv.elementAt(4),
-                                    OTHER_LABEL);
-
-                        trainingData.add(iExample);
-                    }
-
-                } while (cursor.moveToNext());
-            }
-        } catch (Exception e1) {
-            System.out.println(e1);
-        } finally {
-            cursor.close();
-        }
+//        try {
+//            if (cursor.moveToFirst()) {
+//                do {
+//                    String tmplabel = cursor.getString(cursor.getColumnIndex(LABEL));
+//                    if (tmplabel.contains("domo") || tmplabel.contains("Jorge") || tmplabel.contains("CY")) {
+//                        //skip  cuz their data has problem
+//                    } else {
+//                        Instance iExample = new DenseInstance(decisionMaker.getWekaAttributes().size());
+//
+//                        iExample.setValue((Attribute) fv.elementAt(0), Double
+//                                .valueOf(cursor.getString(cursor
+//                                        .getColumnIndex(X))));
+//                        iExample.setValue((Attribute) fv.elementAt(1), Double
+//                                .valueOf(cursor.getString(cursor
+//                                        .getColumnIndex(Y))));
+//                        iExample.setValue((Attribute) fv.elementAt(2), Double
+//                                .valueOf(cursor.getString(cursor
+//                                        .getColumnIndex(PRESSURE))));
+//                        iExample.setValue((Attribute) fv.elementAt(3), Double
+//                                .valueOf(cursor.getString(cursor
+//                                        .getColumnIndex(SIZE))));
+//                        timeStamp.add(Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP))));
+//                        if (tmplabel.contains("owner"))
+//                            iExample.setValue((Attribute) fv.elementAt(4),
+//                                    cursor.getString(cursor
+//                                            .getColumnIndex(LABEL))
+//                            );
+//                        else
+//                            iExample.setValue((Attribute) fv.elementAt(4),
+//                                    OTHER_LABEL);
+//
+//                        trainingData.add(iExample);
+//                    }
+//
+//                } while (cursor.moveToNext());
+//            }
+//        } catch (Exception e1) {
+//            System.out.println(e1);
+//        } finally {
+//            cursor.close();
+//        }
+        preprocessData(cursor);
         cursor.close();
         readSource.close();
+    }
+
+    /**
+     * Preprocess data to per access data type
+     *
+     * @param cursor
+     */
+    private void preprocessData(Cursor cursor) {
+        if (cursor.moveToFirst()) {
+                Vector perAccess = new Vector();
+                String previousLabel = cursor.getString(cursor.getColumnIndex(LABEL));
+                String label = null;
+                double nowTimeStamp = 0 ;
+                double previousTimeStamp = Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP)));
+                while(cursor.moveToNext()){
+                    label = cursor.getString(cursor.getColumnIndex(LABEL));
+                    nowTimeStamp = Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP)));
+
+                    // in same label and is in the same access
+                    if (label.contains(previousLabel)) {
+                        System.out.println("in same label durantion :"+(nowTimeStamp - previousTimeStamp));
+                        if(nowTimeStamp-previousTimeStamp < PERIOD){
+                            //the same label and same access add to access data
+                            if(!label.contains("owner"))
+                                label = "other";
+                            TouchDataNode perTouch = new TouchDataNode();
+                            perTouch.setX(cursor.getString(cursor.getColumnIndex(X)));
+                            perTouch.setY(cursor.getString(cursor.getColumnIndex(Y)));
+                            perTouch.setActionType(cursor.getString(cursor.getColumnIndex(ACTION_TYPE)));
+                            perTouch.setLabel(label);
+                            perTouch.setPressure(cursor.getString(cursor.getColumnIndex(PRESSURE)));
+                            perTouch.setSize(cursor.getString(cursor.getColumnIndex(SIZE)));
+                            perTouch.setTimestamp(cursor.getString(cursor.getColumnIndex(TIMESTAMP)));
+                            perAccess.add(perTouch);
+                            System.out.println("in same access");
+                            previousTimeStamp = nowTimeStamp ;
+                        }
+                        else{
+                            System.out.println("finish detecting one aceess");
+                            //the same label but different access ,  throw access data to preprocess and add this touch to next access
+                            previousLabel =  cursor.getString(cursor.getColumnIndex(LABEL));
+                            previousTimeStamp = Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP)));
+                            cursor.moveToPrevious();
+                            this.slingAndTouch(perAccess);
+                            perAccess = new Vector();
+                        }
+                    }
+                    else {
+                        //different label throw access data to preprocess and add this touch to next access
+                        System.out.println("finish detecting one aceess");
+                        previousLabel =  cursor.getString(cursor.getColumnIndex(LABEL));
+                        previousTimeStamp = Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP)));
+                        cursor.moveToPrevious();
+                       this.slingAndTouch(perAccess);
+                        perAccess = new Vector();
+                    }
+                }
+        }
+    }
+
+    /**
+     * Process Per access data to get average distance of X , Y and velocity and input to training data
+     * @param perAccess
+     */
+    private void slingAndTouch(Vector perAccess) {
+        Iterator it = perAccess.iterator();
+        int start_x = 0, start_y = 0, end_x = 0, end_y = 0;
+        double startTime = 0, endTime = 0, averageSize = 0, averagePressure = 0;
+        int counter = 0 ;
+        boolean keepDetecting = false;
+        boolean finishGesture = false;
+        FastVector fv = decisionMaker.getWekaAttributes();
+        System.out.println("in procees sling and touch ");
+        Instance iExample = new DenseInstance(decisionMaker.getWekaAttributes().size());
+        while (it.hasNext()) {
+            TouchDataNode touchData = (TouchDataNode) it.next();
+            switch (touchData.getActionType()) {
+                case ACTION_DOWN:
+                    start_x = touchData.getX();
+                    start_y = touchData.getY();
+                    startTime = touchData.getTimestamp();
+                    averagePressure = touchData.getPressure();
+                    averageSize = touchData.getSize();
+                    counter++;
+                    break;
+                    // start per touch
+                case ACTION_MOVE:
+                    keepDetecting = true;
+                    counter ++ ;
+                    break;
+                    // keep detect per touch
+                case ACTION_UP:
+                    end_x = touchData.getX();
+                    end_y = touchData.getY();
+                    endTime = touchData.getTimestamp();
+                    averagePressure += touchData.getPressure();
+                    averageSize += touchData.getSize();
+                    finishGesture = true;
+                    counter++;
+                    break;
+                default:
+                    System.out.println("Meets Error in detecting action type :"+ touchData.getActionType() );
+                    break;
+            }
+            if (finishGesture) {
+                int distanceX = end_x - start_x ;
+                int distanceY = end_y - start_y ;
+                double duration = endTime - startTime ;
+                double velocity  = distanceX / duration ;
+                averagePressure = averagePressure /counter ;
+                averageSize = averageSize / counter ;
+                iExample.setValue((Attribute) fv.elementAt(0),distanceX);
+                iExample.setValue((Attribute)fv.elementAt(1),distanceY);
+                iExample.setValue((Attribute)fv.elementAt(2),averagePressure);
+                iExample.setValue((Attribute)fv.elementAt(3),averageSize);
+                iExample.setValue((Attribute)fv.elementAt(4),duration);
+                iExample.setValue((Attribute)fv.elementAt(5),velocity);
+                if (keepDetecting) {
+                    int touchType = SLIDE;
+                    iExample.setValue((Attribute)fv.elementAt(6),touchType);
+                }
+                else{
+                    int touchType = TOUCH;
+                    iExample.setValue((Attribute)fv.elementAt(6),touchType);
+                }
+                iExample.setValue((Attribute)fv.elementAt(7),(String)touchData.getLabel());
+                System.out.println("x :"+distanceX+ " Y : "+distanceY+ "averagePressure : "+averagePressure+" average size "+averageSize+ "touch type :"+keepDetecting+ "label :"+touchData.getLabel());
+                trainingData.add(iExample);
+                finishGesture = false;
+                keepDetecting = false;
+                counter = 0 ;
+            }
+
+        }
     }
 
     private void init() {
@@ -273,6 +413,7 @@ public class LiveWallPaper extends WallpaperService {
 
         // TODO put the build model in asynTask
         decisionMaker = new DecisionMaker();
+        //for split the data to per-access data
         accessData = new Instances("accessData", decisionMaker.getWekaAttributes(), 1000);
         testData = new Instances("TestData", decisionMaker.getWekaAttributes(),
                 1000);
@@ -291,7 +432,6 @@ public class LiveWallPaper extends WallpaperService {
         } else {
             // training mode collect all event data to database
             if (mode == DecisionMaker.TRAINING) {
-
             }
             // test every touch event
             else {
@@ -333,7 +473,7 @@ public class LiveWallPaper extends WallpaperService {
         int trainSize = (int) Math.round(trainingData.numInstances() * SPLIT_PERCENTAGE);
         int testSize = trainingData.numInstances() - trainSize;
         trainingData = new Instances(inst, 0, trainSize);
-        testData = new Instances(inst,trainSize, testSize);
+        testData = new Instances(inst, trainSize, testSize);
         Log.d("split", "testData size " + testData.numInstances()
                 + "traindata size " + trainingData.numInstances());
 
@@ -366,7 +506,7 @@ public class LiveWallPaper extends WallpaperService {
 
         @Override
         public void onTouchEvent(MotionEvent event) {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            if (event.getAction() == ACTION_DOWN) {
 
                 if (is_experiment) {
                     try {
@@ -461,6 +601,9 @@ public class LiveWallPaper extends WallpaperService {
             }
         }
 
+        /**
+         * extract per access data from testData and throw the accessData to decisionMaker
+         */
         public void evaluatoinPerAccess() {
             super.run();
             int[] result = new int[4];
@@ -510,10 +653,19 @@ public class LiveWallPaper extends WallpaperService {
             }
         }
 
+        public void evalution(Instances perAccess){
+//            decisionMaker.evaluationWithMajorityVoting(perAccess);
+            try {
+                decisionMaker.evaluationEachClassifier(perAccess);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
         @Override
         public void run() {
-//           evaluatoinPerAccess();
-            evaluationPerClassifierEveryInstances();
+//            evaluatoinPerAccess();
+//            evaluationPerClassifierEveryInstances();
+              evalution(testData);
         }
     }
 
