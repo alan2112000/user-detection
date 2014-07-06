@@ -1,83 +1,91 @@
 package com.AlanYu.database;
 
-import android.database.Cursor;
-
 public class TouchDataNode {
 
-	private String id;
-	private String x;
-	private String y;
-	private String size;
-	private String pressure;
-	private String timestamp;
-	private String label;
-	private String actionType;
+    private String id;
+    private String x;
+    private String y;
+    private String size;
+    private String pressure;
+    private String timestamp;
+    private String label;
+    private String actionType;
 
-	public String getId() {
-		return id;
-	}
+    public boolean isAccessEnd() {
+        return accessEnd;
+    }
 
-	public void setId(String id) {
-		this.id = id;
-	}
+    public void setAccessEnd(boolean accessEnd) {
+        this.accessEnd = accessEnd;
+    }
 
-	public int getX() {
-		return Integer.valueOf(x);
-	}
+    private boolean accessEnd;
 
-	public void setX(String x) {
-		this.x = x;
-	}
+    public String getId() {
+        return id;
+    }
 
-	public int getY() {
-		return Integer.valueOf(y);
-	}
+    public void setId(String id) {
+        this.id = id;
+    }
 
-	public void setY(String y) {
-		this.y = y;
-	}
+    public int getX() {
+        return Integer.valueOf(x);
+    }
 
-	public double getSize() {
-		return Double.valueOf(this.size);
-	}
+    public void setX(String x) {
+        this.x = x;
+    }
 
-	public void setSize(String size) {
-		this.size = size;
-	}
+    public int getY() {
+        return Integer.valueOf(y);
+    }
 
-	public double getPressure() {
-		return Double.valueOf(pressure);
-	}
+    public void setY(String y) {
+        this.y = y;
+    }
 
-	public void setPressure(String pressure) {
-		this.pressure = pressure;
-	}
+    public double getSize() {
+        return Double.valueOf(this.size);
+    }
 
-	public double getTimestamp() {
-		return Double.valueOf(timestamp);
-	}
+    public void setSize(String size) {
+        this.size = size;
+    }
 
-	public void setTimestamp(String timestamp) {
-		this.timestamp = timestamp;
-	}
+    public double getPressure() {
+        return Double.valueOf(pressure);
+    }
 
-	public String getLabel() {
-		return label;
-	}
+    public void setPressure(String pressure) {
+        this.pressure = pressure;
+    }
 
-	public void setLabel(String label) {
-		this.label = label;
-	}
+    public double getTimestamp() {
+        return Double.valueOf(timestamp);
+    }
 
-	public int getActionType() {
-		return Integer.valueOf(this.actionType);
-	}
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
 
-	public void setActionType(String actionType) {
-		this.actionType = actionType;
-	}
+    public String getLabel() {
+        return label;
+    }
 
-	public TouchDataNode() {
-	}
+    public void setLabel(String label) {
+        this.label = label;
+    }
+
+    public int getActionType() {
+        return Integer.valueOf(this.actionType);
+    }
+
+    public void setActionType(String actionType) {
+        this.actionType = actionType;
+    }
+
+    public TouchDataNode() {
+    }
 
 }

@@ -82,10 +82,12 @@ public abstract class AbstractFilter {
         Attribute attribute2 = new Attribute("y");
         Attribute attribute3 = new Attribute("pressure");
         Attribute attribute4 = new Attribute("size");
+
+
+        //for preprocess data type , remember to modify the CLASS_INDEX AND CLASS_ATTRIBUTES
         Attribute attribute5 = new Attribute("time");
         Attribute attribute6 = new Attribute("velocity");
         Attribute attribute7 = new Attribute("type");
-//        Attribute attribute5 = new Attribute("timestamp");
         // nominal attribute along with its values
 
         // declare class attribute

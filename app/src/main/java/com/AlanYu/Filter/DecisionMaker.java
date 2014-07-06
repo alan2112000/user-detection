@@ -23,7 +23,7 @@ public class DecisionMaker extends Vote {
     public static final int TRUE_NEGATIVE = 1;
     public static final int FALSE_POSITIVE = 2;
     public static final int FALSE_NEGATIVE = 3;
-    public static final int ATTRIBUTE_SIZE = 5;
+    public static final int ATTRIBUTE_SIZE = 8;
 
     private J48Classifier j48;
     private kNNClassifier knn;
@@ -88,12 +88,11 @@ public class DecisionMaker extends Vote {
      * @return
      */
     public int getFinalLabel(Instances unLabelData) {
+        //majority voting
 //        return predictionInstances(unLabelData);
-        int[] votes = predictionByAccumulatingVotes(unLabelData);
-        if (votes[IS_OWNER] >= votes[IS_OTHER])
-            return IS_OWNER;
-        else
-            return IS_OTHER;
+
+        // accumulates votes
+        return predictionByAccumulatingVotes(unLabelData);
     }
 
     /**
@@ -175,7 +174,7 @@ public class DecisionMaker extends Vote {
         result2[0] = precision;
         result2[1] = recall;
         result2[2] = fMeasure;
-        System.out.println("\n----------Result-------\n");
+        System.out.println("\n----------Result-------Threshold:"+this.getThreshold()+"\n");
         System.out.println("Precisoin : " + Double.toString(result2[0])
                 + " Recall: " + Double.toString(result2[1]) + " F-Measure:"
                 + result2[2]);
@@ -214,7 +213,7 @@ public class DecisionMaker extends Vote {
      * @param unLabelData
      * @return
      */
-    private int[] predictionByAccumulatingVotes(Instances unLabelData) {
+    private int predictionByAccumulatingVotes(Instances unLabelData) {
         int[] votes = new int[2];
         for (int i = 0; i < unLabelData.numInstances(); i++) {
             for (int j = 0; j < m_Classifiers.length; j++) {
@@ -226,7 +225,7 @@ public class DecisionMaker extends Vote {
                 }
             }
         }
-        return votes;
+        return thresholdPolicy(votes[DecisionMaker.IS_OWNER],votes[DecisionMaker.IS_OTHER]);
     }
 
     /**
@@ -251,22 +250,29 @@ public class DecisionMaker extends Vote {
             else
                 otherLabelNumber++;
         }
-        double precision = (double) ownerLabelNumber
-                / (ownerLabelNumber + otherLabelNumber);
 
-        System.out.println("Predicting Label : Number of owner votes:" + ownerLabelNumber + "Number of other votes : " + otherLabelNumber);
-        System.out.println("True label  = " + unLabelData.instance(0).classValue());
+        return thresholdPolicy(ownerLabelNumber,otherLabelNumber);
+//        System.out.println("Predicting Label : Number of owner votes:" + ownerLabelNumber + "Number of other votes : " + otherLabelNumber);
+//        System.out.println("True label  = " + unLabelData.instance(0).classValue());
         /* with threshold policy */
-        if (precision > this.getThreshold())
-            return IS_OWNER;
-        else
-            return IS_OTHER;
+
 
         /* with winner take all policy */
 //        if(ownerLabelNumber >= otherLabelNumber)
 //            return IS_OWNER;
 //        else
 //            return IS_OTHER;
+    }
+
+    private int thresholdPolicy(int ownerLabelNumber, int otherLabelNumber) {
+        double precision = (double) ownerLabelNumber
+                / (ownerLabelNumber + otherLabelNumber);
+
+        if (precision > this.getThreshold())
+            return IS_OWNER;
+        else
+            return IS_OTHER;
+
     }
 
 
@@ -315,7 +321,11 @@ public class DecisionMaker extends Vote {
         Attribute attribute2 = new Attribute("y");
         Attribute attribute3 = new Attribute("pressure");
         Attribute attribute4 = new Attribute("size");
-//        Attribute attribute5 = new Attribute("timestamp");
+
+        //for preprocess data
+        Attribute attribute5 = new Attribute("time");
+        Attribute attribute6 = new Attribute("velocity");
+        Attribute attribute7 = new Attribute("type");
         // nominal attribute along with its values
 
         // declare class attribute
@@ -330,6 +340,9 @@ public class DecisionMaker extends Vote {
         getFvWekaAttributes().addElement(attribute2);
         getFvWekaAttributes().addElement(attribute3);
         getFvWekaAttributes().addElement(attribute4);
+        getFvWekaAttributes().addElement(attribute5);
+        getFvWekaAttributes().addElement(attribute6);
+        getFvWekaAttributes().addElement(attribute7);
 //        getFvWekaAttributes().addElement(attribute5);
         getFvWekaAttributes().addElement(classAttribute);
 
