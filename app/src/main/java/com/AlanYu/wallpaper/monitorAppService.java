@@ -79,8 +79,8 @@ public class monitorAppService extends IntentService implements
         appType = settings.getString("APP", "");
         mode = settings.getInt("Mode", DecisionMaker.IS_OWNER);
         // catach the the acceleter data app name is appType and
+        //record data
         if (mode == DecisionMaker.TRAINING)
-            // just record data
             ;
         else {
             try {
@@ -98,10 +98,8 @@ public class monitorAppService extends IntentService implements
         return START_STICKY;
     }
 
-    /*
-     * ===================================================================== Get
-     * Now Running Apps Information
-     * =====================================================================
+    /**
+     * get now runninig apps information
      */
     private void getAppsInfo() {
         ActivityManager am = (ActivityManager) this
@@ -125,11 +123,10 @@ public class monitorAppService extends IntentService implements
 
     }
 
-    /*
-     * =====================================================================
-     * find the pid of the Process for purpose to kill process
-     *
-     * =====================================================================
+    /**
+     *  find the pid of the Process for purpose to kill process
+     * @param ps  ps is the apps short name
+     * @return pid of the process
      */
     private int findMatchProcessByName(String ps) {
         int notFound = 0;
@@ -155,8 +152,10 @@ public class monitorAppService extends IntentService implements
         return notFound;
     }
 
-    /*
+    /**
      * pass the pid value to delete the process
+     * @param ps
+     * @return
      */
     private boolean deleteProcessByName(String ps) {
         int pid = findMatchProcessByName(ps);
@@ -167,6 +166,9 @@ public class monitorAppService extends IntentService implements
             return false;
     }
 
+    /**
+     *
+     */
     private void setSensor() {
         List<Sensor> sensors = sensorManager
                 .getSensorList(Sensor.TYPE_ACCELEROMETER);
@@ -264,6 +266,11 @@ public class monitorAppService extends IntentService implements
         writeSource.close();
     }
 
+    /**
+     * read training data from database
+     * @param appName
+     * @throws SQLException
+     */
     private void readDatabase(String appName) throws SQLException {
         DBHelper db = new DBHelper(this);
         SQLiteDatabase readSource = db.getReadableDatabase();

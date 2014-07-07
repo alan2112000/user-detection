@@ -23,7 +23,7 @@ public class DecisionMaker extends Vote {
     public static final int TRUE_NEGATIVE = 1;
     public static final int FALSE_POSITIVE = 2;
     public static final int FALSE_NEGATIVE = 3;
-    public static final int ATTRIBUTE_SIZE = 8;
+    public static final int ATTRIBUTE_SIZE = 5;
 
     private J48Classifier j48;
     private kNNClassifier knn;
@@ -89,10 +89,10 @@ public class DecisionMaker extends Vote {
      */
     public int getFinalLabel(Instances unLabelData) {
         //majority voting
-//        return predictionInstances(unLabelData);
+        return predictionInstances(unLabelData);
 
         // accumulates votes
-        return predictionByAccumulatingVotes(unLabelData);
+//        return predictionByAccumulatingVotes(unLabelData);
     }
 
     /**
@@ -176,12 +176,12 @@ public class DecisionMaker extends Vote {
         result2[2] = fMeasure;
         System.out.println("\n----------Result-------Threshold:"+this.getThreshold()+"\n");
         System.out.println("Precisoin : " + Double.toString(result2[0])
-                + " Recall: " + Double.toString(result2[1]) + " F-Measure:"
+                + "\nRecall: " + Double.toString(result2[1]) + "\nF-Measure:"
                 + result2[2]);
         int total = trueNegative + truePostive + falseNegative + falsePostive;
         double far = (double) falsePostive / total;
         double frr = (double) falseNegative / total;
-        System.out.println("\n FAR : " + Double.toString(far) + " FRR :" + Double.toString(frr));
+        System.out.println("\n FAR : " + Double.toString(far) + "\n FRR :" + Double.toString(frr));
     }
 
     /**
@@ -298,7 +298,10 @@ public class DecisionMaker extends Vote {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        if(dataUnLabeled.numInstances()>0)
         dataUnLabeled.remove(0);
+
         return classType;
 
     }
@@ -323,9 +326,9 @@ public class DecisionMaker extends Vote {
         Attribute attribute4 = new Attribute("size");
 
         //for preprocess data
-        Attribute attribute5 = new Attribute("time");
-        Attribute attribute6 = new Attribute("velocity");
-        Attribute attribute7 = new Attribute("type");
+//        Attribute attribute5 = new Attribute("time");
+//        Attribute attribute6 = new Attribute("velocity");
+//        Attribute attribute7 = new Attribute("type");
         // nominal attribute along with its values
 
         // declare class attribute
@@ -340,9 +343,11 @@ public class DecisionMaker extends Vote {
         getFvWekaAttributes().addElement(attribute2);
         getFvWekaAttributes().addElement(attribute3);
         getFvWekaAttributes().addElement(attribute4);
-        getFvWekaAttributes().addElement(attribute5);
-        getFvWekaAttributes().addElement(attribute6);
-        getFvWekaAttributes().addElement(attribute7);
+
+
+//        getFvWekaAttributes().addElement(attribute5);
+//        getFvWekaAttributes().addElement(attribute6);
+//        getFvWekaAttributes().addElement(attribute7);
 //        getFvWekaAttributes().addElement(attribute5);
         getFvWekaAttributes().addElement(classAttribute);
 
