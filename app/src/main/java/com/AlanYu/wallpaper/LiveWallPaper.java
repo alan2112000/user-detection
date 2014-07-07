@@ -30,7 +30,6 @@ import com.AlanYu.database.TouchDataNode;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.Vector;
 
 import weka.core.Attribute;
@@ -84,7 +83,7 @@ public class LiveWallPaper extends WallpaperService {
     private Instances trainingData;
     private Instances testData;
     private Instances accessData;
-    Vector<Vector> testDataNodes= new Vector<Vector>();
+    Vector<Vector> testDataNodes = new Vector<Vector>();
     private J48Classifier j48;
     private DecisionMaker decisionMaker;
     private String[] PROTECTED_LIST = {"vending", "gm", "mms", "contact",
@@ -112,6 +111,12 @@ public class LiveWallPaper extends WallpaperService {
         return new TouchEngine();
     }
 
+    /**
+     * to find the processName is in the recently running apps or not , if yes  set the setting
+     *
+     * @param processName every apps' name in the protected apps list
+     * @return
+     */
     private boolean recentlyRunningApps(String processName) {
         ActivityManager service = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
         List<RecentTaskInfo> recentTasks = service.getRecentTasks(1,
@@ -311,8 +316,8 @@ public class LiveWallPaper extends WallpaperService {
                         previousLabel = cursor.getString(cursor.getColumnIndex(LABEL));
                         previousTimeStamp = Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP)));
                         cursor.moveToPrevious();
-                        if(trainingNo < NUMBER_OF_TRAINGING_INSTANCES)
-                            this.slingAndTouch(perAccess , isTraining);
+                        if (trainingNo < NUMBER_OF_TRAINGING_INSTANCES)
+                            this.slingAndTouch(perAccess, isTraining);
                         else
                             testDataNodes.add(perAccess);
                         perAccess = new Vector();
@@ -323,10 +328,10 @@ public class LiveWallPaper extends WallpaperService {
                     previousLabel = cursor.getString(cursor.getColumnIndex(LABEL));
                     previousTimeStamp = Double.valueOf(cursor.getString(cursor.getColumnIndex(TIMESTAMP)));
                     cursor.moveToPrevious();
-                    if(trainingNo < NUMBER_OF_TRAINGING_INSTANCES)
-                    this.slingAndTouch(perAccess,isTraining);
+                    if (trainingNo < NUMBER_OF_TRAINGING_INSTANCES)
+                        this.slingAndTouch(perAccess, isTraining);
                     else
-                    testDataNodes.add(perAccess);
+                        testDataNodes.add(perAccess);
                     perAccess = new Vector();
                 }
             }
@@ -336,9 +341,9 @@ public class LiveWallPaper extends WallpaperService {
     /**
      * Process Per access data to get average distance of X , Y and velocity and input to training data
      *
-     * @param perAccess  : consist of the touch event data in vector
+     * @param perAccess : consist of the touch event data in vector
      */
-    private void slingAndTouch(Vector perAccess,boolean isTraining) {
+    private void slingAndTouch(Vector perAccess, boolean isTraining) {
         Iterator it = perAccess.iterator();
         int start_x = 0, start_y = 0, end_x = 0, end_y = 0;
         double startTime = 0, endTime = 0, averageSize = 0, averagePressure = 0;
@@ -400,10 +405,10 @@ public class LiveWallPaper extends WallpaperService {
                 }
                 iExample.setValue((Attribute) fv.elementAt(7), (String) touchData.getLabel());
 //                System.out.println("x :" + distanceX + " Y : " + distanceY + "averagePressure : " + averagePressure + " average size " + averageSize + "touch type :" + keepDetecting + "label :" + touchData.getLabel());
-                if(isTraining)
-                trainingData.add(iExample);
+                if (isTraining)
+                    trainingData.add(iExample);
                 else
-                testData.add(iExample);
+                    testData.add(iExample);
                 finishGesture = false;
                 keepDetecting = false;
                 counter = 0;
@@ -480,7 +485,7 @@ public class LiveWallPaper extends WallpaperService {
 
         Instances inst = trainingData;
 //        int trainSize = (int) Math.round(trainingData.numInstances() * SPLIT_PERCENTAGE);
-        int trainSize = NUMBER_OF_TRAINGING_INSTANCES ;
+        int trainSize = NUMBER_OF_TRAINGING_INSTANCES;
         int testSize = trainingData.numInstances() - trainSize;
 //        System.out.println("training data number of instance "+ trainingData.numInstances());
         trainingData = new Instances(inst, 0, trainSize);
@@ -491,10 +496,10 @@ public class LiveWallPaper extends WallpaperService {
     }
 
     /**
-     * function : to set instances from touch event
+     * function : set instance from touch event to testData
      *
-     * @param event
-     * @param instances
+     * @param event     MotionEvent pass from onTouchEvent
+     * @param instances collect all of the touch event data , that we will predict later
      */
     private void setInstancesFromEvent(MotionEvent event, Instances instances) {
         Instance iExample = new
@@ -518,7 +523,6 @@ public class LiveWallPaper extends WallpaperService {
         @Override
         public void onTouchEvent(MotionEvent event) {
             if (event.getAction() == ACTION_DOWN) {
-
                 if (is_experiment) {
                     try {
                         Thread myThread = new CaculateThread();
@@ -528,6 +532,7 @@ public class LiveWallPaper extends WallpaperService {
                     }
                 }
             }
+
             if (mode == DecisionMaker.TRAINING)
                 writeDataBase(event);
             else {
@@ -543,6 +548,7 @@ public class LiveWallPaper extends WallpaperService {
                     monitorAppService.class);
 
             if (visible) {
+                testData.clear();
                 getSharedPreferenceSetting();
                 stopService(intent);
                 keylock.disableKeyguard();
@@ -559,16 +565,28 @@ public class LiveWallPaper extends WallpaperService {
                         decisionMaker.setThreshold(getThreshold());
                         Log.d("invisible",
                                 "executed process is in the protect list ");
-                        if (DecisionMaker.IS_OTHER == decisionMaker
-                                .getFinalLabel(testData)) {
-                            startService(intent);
+                        if (DecisionMaker.IS_OTHER == decisionMaker.getFinalLabel(testData)) {
                             Log.d("Decision making ", "You are other");
                             Toast.makeText(LiveWallPaper.this, " You are not the owner you mother fucker", Toast.LENGTH_LONG).show();
-                            //TODO  1. lock screen 2.
-                        } else
-                            Log.d("Decision making ", "You are owner");
+                            startService(intent);
+                            //TODO  1. lock screen 2. enable the lock function
+                        } else {
+                            // because threshold smalller than 0.8 still have high FAR
+                            if (decisionMaker.getConfidence() < 0.8) {
+                                Log.d("Decision making ", "maybe You are owner");
+                                setSharedPreference(decisionMaker.getConfidence());
+                                startService(intent);
+                                Log.d("Decision making ", "You are maybe the owner confidence "+ decisionMaker.getConfidence());
+                                Toast.makeText(LiveWallPaper.this, " You are maybe the owner ", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(LiveWallPaper.this, " You are the owner ", Toast.LENGTH_SHORT).show();
+                                Log.d("Decision making ", "You are owner confidence "+decisionMaker.getConfidence());
+                            }
+                        }
+
                         // TODO   1. add 1 success access to database for the future to deciside when time to retraining classifier
                     } else if (mode == DecisionMaker.TRAINING) {
+                        //training mode : record all of accelerometers data
                         startService(intent);
                         Log.d("LiveWall paper", "mode is training and start intent");
                     }
@@ -600,6 +618,12 @@ public class LiveWallPaper extends WallpaperService {
             }
             super.onVisibilityChanged(visible);
         }
+
+        private void setSharedPreference(double confidence) {
+            SharedPreferences settings = getSharedPreferences("Preference",
+                    0);
+            settings.edit().putFloat("CONFIDENCE", (float) confidence).commit();
+        }
     }
 
     public class CaculateThread extends Thread {
@@ -618,7 +642,7 @@ public class LiveWallPaper extends WallpaperService {
         public void evaluatoinPerAccess() {
             super.run();
             for (int j = 1; j < 10; j++) {
-                decisionMaker.setThreshold((double)j/10);
+                decisionMaker.setThreshold((double) j / 10);
                 int[] result = new int[4];
                 try {
                     int startIndex = trainingData.numInstances();
@@ -657,7 +681,6 @@ public class LiveWallPaper extends WallpaperService {
                     }
 
 
-
 //                    System.out.println(" Total test instances number is : " + testData.numInstances() + "Training instances number is " + trainingData.numInstances());
 //                    int owner = 0;
 //                    for (int i = 0; i < trainingData.numInstances(); i++) {
@@ -673,6 +696,7 @@ public class LiveWallPaper extends WallpaperService {
                 }
             }
         }
+
         public void evalution(Instances perAccess) {
 //            decisionMaker.evaluationWithMajorityVoting(perAccess);
             try {
@@ -682,11 +706,10 @@ public class LiveWallPaper extends WallpaperService {
             }
         }
 
-        public void evaluationProcessDataPerAccess(Vector data)
-        {
+        public void evaluationProcessDataPerAccess(Vector data) {
 
-            for (int i = 1; i <10 ; i++) {
-                decisionMaker.setThreshold((double)i / 10);
+            for (int i = 1; i < 10; i++) {
+                decisionMaker.setThreshold((double) i / 10);
                 boolean isTraing = false;
                 int predictLabel = 0;
                 int trueLabel = 0;
@@ -708,6 +731,7 @@ public class LiveWallPaper extends WallpaperService {
                 decisionMaker.printStatistics(result);
             }
         }
+
         @Override
         public void run() {
             evaluatoinPerAccess();

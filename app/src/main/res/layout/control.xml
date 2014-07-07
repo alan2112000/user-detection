@@ -69,8 +69,8 @@
     <RadioGroup
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="0.37"
-        android:orientation="horizontal"
+        android:layout_weight="0.77"
+        android:orientation="vertical"
         android:id="@+id/radiogroup">
 
         <RadioButton
@@ -86,13 +86,13 @@
             android:text="Experiment"
             android:id="@+id/experimentButton"
             android:checked="false"/>
-    </RadioGroup>
 
-    <RadioButton
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Normal Mode "
-        android:id="@+id/normalModeButton"
-        android:checked="false"/>
+        <RadioButton
+            android:layout_width="107dp"
+            android:layout_height="wrap_content"
+            android:text="Normal Mode "
+            android:id="@+id/normalModeButton"
+            android:checked="false"/>
+    </RadioGroup>
 
 </LinearLayout>

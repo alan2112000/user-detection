@@ -82,15 +82,6 @@ public abstract class AbstractFilter {
         Attribute attribute2 = new Attribute("y");
         Attribute attribute3 = new Attribute("pressure");
         Attribute attribute4 = new Attribute("size");
-
-
-        //for preprocess data type , remember to modify the CLASS_INDEX AND CLASS_ATTRIBUTES
-//        Attribute attribute5 = new Attribute("time");
-//        Attribute attribute6 = new Attribute("velocity");
-//        Attribute attribute7 = new Attribute("type");
-        // nominal attribute along with its values
-
-        // declare class attribute
         FastVector fvClassVal = new FastVector(2);
         fvClassVal.addElement("owner");
         fvClassVal.addElement("other");
@@ -102,9 +93,6 @@ public abstract class AbstractFilter {
         fvWekaAttributes.addElement(attribute2);
         fvWekaAttributes.addElement(attribute3);
         fvWekaAttributes.addElement(attribute4);
-//        fvWekaAttributes.addElement(attribute5);
-//        fvWekaAttributes.addElement(attribute6);
-//        fvWekaAttributes.addElement(attribute7);
         fvWekaAttributes.addElement(classAttribute);
 
         dataUnLabeled = new Instances("TestInstances", getFvWekaAttributes(),
@@ -127,9 +115,6 @@ public abstract class AbstractFilter {
             do {
                 Instance iExample = new DenseInstance(ATTRIBUTE_SIZE);
                 Log.d("abstractFilter", "setting instance value ");
-                // iExample.setValue((Attribute) getFvWekaAttributes()
-                // .elementAt(0),
-                // Double.valueOf(cursor.getString(cursor.getColumnIndex("X"))));
                 iExample.setValue((Attribute) getFvWekaAttributes()
                         .elementAt(1), Double.valueOf(cursor.getString(cursor
                         .getColumnIndex("Y"))));
@@ -151,7 +136,7 @@ public abstract class AbstractFilter {
 
     public void addInstanceToTrainingData(Instance instance) {
         trainingData.add(instance);
-        this.predictInstance(instance);
+//        this.predictInstance(instance);
     }
 
     public void addInstanceToTestData(Instance instance) {

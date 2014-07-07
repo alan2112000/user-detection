@@ -44,8 +44,6 @@ public class Control extends Activity {
     ComponentName mDeviceComponentName;
 
 
-
-
     private OnClickListener authorize = new OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -91,8 +89,6 @@ public class Control extends Activity {
      * enable application to monitor the whole data
      */
     private OnClickListener start = new OnClickListener() {
-
-
         @Override
         public void onClick(View v) {
             intent = new Intent(
@@ -119,17 +115,20 @@ public class Control extends Activity {
         @Override
         public void onCheckedChanged(RadioGroup radioGroup, int checkId) {
             if (checkId == R.id.trainingButton) {
-                    trainingButton.setChecked(true);
-                    experimentButton.setChecked(false);
-                    Toast.makeText(Control.this, "traingin Button selected", Toast.LENGTH_SHORT).show();
-            } else if (checkId == R.id.experimentButton){
-                    experimentButton.setChecked(true);
-                    trainingButton.setChecked(false);
-                    Toast.makeText(Control.this, "experiment buttuon selected ", Toast.LENGTH_SHORT).show();
-                }
-            else {
+                trainingButton.setChecked(true);
+                experimentButton.setChecked(false);
+                normalButton.setChecked(false);
+                Toast.makeText(Control.this, "traingin Button selected", Toast.LENGTH_SHORT).show();
+            } else if (checkId == R.id.experimentButton) {
+                experimentButton.setChecked(true);
+                trainingButton.setChecked(false);
+                normalButton.setChecked(false);
+                Toast.makeText(Control.this, "experiment buttuon selected ", Toast.LENGTH_SHORT).show();
+            } else {
                 normalButton.setChecked(true);
-                Toast.makeText(Control.this,"System will prompt lock if it think you are not the owner",Toast.LENGTH_LONG).show();
+                experimentButton.setChecked(false);
+                trainingButton.setChecked(false);
+                Toast.makeText(Control.this, "System will prompt lock if it think you are not the owner", Toast.LENGTH_LONG).show();
             }
 
         }

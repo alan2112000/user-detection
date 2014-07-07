@@ -35,6 +35,7 @@ public class DecisionMaker extends Vote {
     private String classifierName = "Vote";
     private Instances trainingData;
     private double threshold;
+    private double confidence;
 
     public DecisionMaker() {
         init();
@@ -90,7 +91,6 @@ public class DecisionMaker extends Vote {
     public int getFinalLabel(Instances unLabelData) {
         //majority voting
         return predictionInstances(unLabelData);
-
         // accumulates votes
 //        return predictionByAccumulatingVotes(unLabelData);
     }
@@ -239,6 +239,7 @@ public class DecisionMaker extends Vote {
         int ownerLabelNumber = 0;
         int otherLabelNumber = 0;
         int classtype = 0;
+        Log.d("in predicting label","number of unlable instances: "+unLabelData.numInstances());
         for (int i = 0; i < unLabelData.numInstances(); i++) {
             try {
                 classtype = this.voteForInstance(unLabelData.instance(i));
@@ -265,10 +266,11 @@ public class DecisionMaker extends Vote {
     }
 
     private int thresholdPolicy(int ownerLabelNumber, int otherLabelNumber) {
-        double precision = (double) ownerLabelNumber
+        double confidence  = (double) ownerLabelNumber
                 / (ownerLabelNumber + otherLabelNumber);
 
-        if (precision > this.getThreshold())
+        this.setConfidence(confidence);
+        if (confidence > this.getThreshold())
             return IS_OWNER;
         else
             return IS_OTHER;
@@ -344,9 +346,8 @@ public class DecisionMaker extends Vote {
         getFvWekaAttributes().addElement(attribute3);
         getFvWekaAttributes().addElement(attribute4);
 
-
 //        getFvWekaAttributes().addElement(attribute5);
-//        getFvWekaAttributes().addElement(attribute6);
+ //        getFvWekaAttributes().addElement(attribute6);
 //        getFvWekaAttributes().addElement(attribute7);
 //        getFvWekaAttributes().addElement(attribute5);
         getFvWekaAttributes().addElement(classAttribute);
@@ -434,13 +435,15 @@ public class DecisionMaker extends Vote {
 
         return tmpMajorityIndex;
     }
-
     public double getThreshold() {
         return threshold;
     }
-
     public void setThreshold(double threshold) {
         this.threshold = threshold;
     }
+    public double getConfidence() {
+        return confidence;
+    }
+    public void setConfidence(double confidence) {this.confidence=confidence; }
 
 }

@@ -15,6 +15,7 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.IBinder;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.AlanYu.Filter.DecisionMaker;
 import com.AlanYu.Filter.J48ClassiferForAC;
@@ -43,7 +44,11 @@ public class monitorAppService extends IntentService implements
     private int mode;
     private int ownerLabelNumber = 0;
     private int otherLabelNumber = 0;
+    private float confidence = 0;
 
+    //todo: this parameter should be set from the contrl activity
+    private float weight = (float) 0.5;
+    private int number_of_data = 0;
     // filter
     J48ClassiferForAC j48;
     // Database parameter
@@ -77,6 +82,7 @@ public class monitorAppService extends IntentService implements
         SharedPreferences settings = getSharedPreferences("Preference", 0);
         userType = settings.getString("name", "");
         appType = settings.getString("APP", "");
+        this.setConfidence(settings.getFloat("CONFIDENCE", (float) 0.5));
         mode = settings.getInt("Mode", DecisionMaker.IS_OWNER);
         // catach the the acceleter data app name is appType and
         //record data
@@ -124,8 +130,9 @@ public class monitorAppService extends IntentService implements
     }
 
     /**
-     *  find the pid of the Process for purpose to kill process
-     * @param ps  ps is the apps short name
+     * find the pid of the Process for purpose to kill process
+     *
+     * @param ps ps is the apps short name
      * @return pid of the process
      */
     private int findMatchProcessByName(String ps) {
@@ -154,6 +161,7 @@ public class monitorAppService extends IntentService implements
 
     /**
      * pass the pid value to delete the process
+     *
      * @param ps
      * @return
      */
@@ -193,6 +201,11 @@ public class monitorAppService extends IntentService implements
         super.onDestroy();
     }
 
+    /**
+     * detect the suer action here
+     *
+     * @param event
+     */
     @Override
     public void onSensorChanged(SensorEvent event) {
 
@@ -210,6 +223,7 @@ public class monitorAppService extends IntentService implements
         if (mode == DecisionMaker.TRAINING)
             writeDataBase(event);
         else {
+            this.setNumber_of_data(this.getNumber_of_data() + 1);
             FastVector fv = j48.getFvWekaAttributes();
             Instance iExample = new DenseInstance(4);
             iExample.setValue((Attribute) fv.elementAt(0), values[0]);
@@ -220,33 +234,33 @@ public class monitorAppService extends IntentService implements
             dataUnLabeled.add(iExample);
             dataUnLabeled.setClassIndex(dataUnLabeled.numAttributes() - 1);
             double[] prediction;
-            double prediction2;
             try {
                 prediction = j48.returnClassifier().distributionForInstance(
                         dataUnLabeled.firstInstance());
                 // output predictions
-                for (int i = 0; i < prediction.length; i++) {
-                    System.out.println("Probability of class "
-                            + dataUnLabeled.classAttribute().value(i) + " : "
-                            + Double.toString(prediction[i]));
-                }
+//                for (int i = 0; i < prediction.length; i++) {
+//                    System.out.println("Probability of class "
+//                            + dataUnLabeled.classAttribute().value(i) + " : "
+//                            + Double.toString(prediction[i]));
+//                }
 
                 if (prediction[DecisionMaker.IS_OWNER] > prediction[DecisionMaker.IS_OTHER])
                     ownerLabelNumber++;
                 else
                     otherLabelNumber++;
 
-                double precision = (double) ownerLabelNumber / (otherLabelNumber + ownerLabelNumber);
-                Log.d("DecisionMaker", "Now Confidence is :" + Double.toString(precision));
+                // do a decision by 5 seconds
+                if (this.getNumber_of_data() % 25 == 0) {
+                    Thread myThread = new CaculateThread();
+                    myThread.run();
+                }
+//                Log.d("DecisionMaker", "Now Confidence is :" + Double.toString(precision));
             } catch (Exception e) {
                 e.printStackTrace();
             }
-
-//			j48.predictInstance(iExample);
-
+            dataUnLabeled.clear();
         }
     }
-
     private void writeDataBase(SensorEvent event) {
 
         DBHelper db = new DBHelper(this);
@@ -262,20 +276,23 @@ public class monitorAppService extends IntentService implements
         args.put("LABEL", userType);
         args.put("APP", appType);
         long rowid = writeSource.insert("SENSOR_MAIN", null, args);
-        Log.d("writeDatabase Event", "id =" + rowid+"x : "+String.valueOf(values[0]) + "y : "+String.valueOf(values[1])+" z: "+String.valueOf(values[2]) +"app :"+appType + "user :"+userType);
+        Log.d("writeDatabase Event", "id =" + rowid + "x : " + String.valueOf(values[0]) + "y : " + String.valueOf(values[1]) + " z: " + String.valueOf(values[2]) + "app :" + appType + "user :" + userType);
         writeSource.close();
     }
 
     /**
      * read training data from database
+     *
      * @param appName
      * @throws SQLException
      */
     private void readDatabase(String appName) throws SQLException {
         DBHelper db = new DBHelper(this);
+        String selectionArgs[] = new String[1];
+        selectionArgs[0] = appName ;
         SQLiteDatabase readSource = db.getReadableDatabase();
         Cursor cursor = readSource.query(tableName, new String[]{xColumn,
-                        yColumn, zColumn, labelColumn, appColumn}, null, null, null,
+                        yColumn, zColumn, labelColumn, appColumn},"APP=?", selectionArgs, null,
                 null, null
         );
         double x = 0, y = 0, z = 0;
@@ -299,15 +316,9 @@ public class monitorAppService extends IntentService implements
                         || label.contains("Jorge"))
                     ;
                 else {
-                    iExample.setValue((Attribute) fv.elementAt(0), Double
-                            .valueOf(cursor.getString(cursor
-                                    .getColumnIndex(xColumn))));
-                    iExample.setValue((Attribute) fv.elementAt(1), Double
-                            .valueOf(cursor.getString(cursor
-                                    .getColumnIndex(yColumn))));
-                    iExample.setValue((Attribute) fv.elementAt(2), Double
-                            .valueOf(cursor.getString(cursor
-                                    .getColumnIndex(zColumn))));
+                    iExample.setValue((Attribute) fv.elementAt(0),x);
+                    iExample.setValue((Attribute) fv.elementAt(1),y);
+                    iExample.setValue((Attribute) fv.elementAt(2),z);
 
                     if (cursor.getString(cursor.getColumnIndex(labelColumn))
                             .contains("owner"))
@@ -315,12 +326,59 @@ public class monitorAppService extends IntentService implements
                     else
                         iExample.setValue((Attribute) fv.elementAt(3), "other");
                 }
-                // vc record all database let SVM.class to analyze
-                // vc.add(cursor);
                 j48.addInstanceToTrainingData(iExample);
                 cursor.moveToNext();
             }
             cursor.close();
+        }
+    }
+
+    public float getConfidence() {
+        return confidence;
+    }
+
+    public void setConfidence(float confidence) {
+        this.confidence = confidence;
+    }
+
+    public int getNumber_of_data() {
+        return number_of_data;
+    }
+
+    public void setNumber_of_data(int number_of_data) {
+        this.number_of_data = number_of_data;
+
+    }
+
+    public float getWeight() {
+        return weight;
+    }
+
+    public void setWeight(float weight) {
+        this.weight = weight;
+    }
+    public class CaculateThread extends Thread{
+
+        private void predictionPolicy() {
+            double precision = (double) ownerLabelNumber / (otherLabelNumber + ownerLabelNumber);
+            double now_confidence = getWeight() * getConfidence() + (1-getWeight())*precision ;
+            if(now_confidence <0.5){
+                Toast.makeText(monitorAppService.this, " You are not the owner", Toast.LENGTH_SHORT).show();
+                Log.d("monitorService","you are the other");
+                onDestroy();
+            }
+            if(now_confidence >= getConfidence()) {
+                Toast.makeText(monitorAppService.this, " You are the owner", Toast.LENGTH_SHORT).show();
+                Log.d("monitorService","confirm you are the owner");
+                onDestroy();
+            }
+        }
+
+        @Override
+        public void run() {
+            super.run();
+            predictionPolicy();
+
         }
     }
 }
