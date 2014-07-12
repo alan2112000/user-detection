@@ -174,7 +174,7 @@ public class DecisionMaker extends Vote {
         result2[0] = precision;
         result2[1] = recall;
         result2[2] = fMeasure;
-        System.out.println("\n----------Result-------Threshold:"+this.getThreshold()+"\n");
+        System.out.println("\n----------Result-------Threshold:" + this.getThreshold() + "\n");
         System.out.println("Precisoin : " + Double.toString(result2[0])
                 + "\nRecall: " + Double.toString(result2[1]) + "\nF-Measure:"
                 + result2[2]);
@@ -199,7 +199,7 @@ public class DecisionMaker extends Vote {
             try {
                 classType = (int) classifier.classifyInstance(labeledData
                         .instance(i));
-                result = evaluation((int)labeledData.instance(i).classValue(), classType,result);
+                result = evaluation((int) labeledData.instance(i).classValue(), classType, result);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -225,7 +225,7 @@ public class DecisionMaker extends Vote {
                 }
             }
         }
-        return thresholdPolicy(votes[DecisionMaker.IS_OWNER],votes[DecisionMaker.IS_OTHER]);
+        return thresholdPolicy(votes[DecisionMaker.IS_OWNER], votes[DecisionMaker.IS_OTHER]);
     }
 
     /**
@@ -239,10 +239,10 @@ public class DecisionMaker extends Vote {
         int ownerLabelNumber = 0;
         int otherLabelNumber = 0;
         int classtype = 0;
-        Log.d("in predicting label","number of unlable instances: "+unLabelData.numInstances());
+//        Log.d("in predicting label","number of unlable instances: "+unLabelData.numInstances());
         for (int i = 0; i < unLabelData.numInstances(); i++) {
             try {
-                classtype = this.voteForInstance(unLabelData.instance(i));
+                classtype = this.instanceMajorityVoting(unLabelData.instance(i));
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -251,22 +251,11 @@ public class DecisionMaker extends Vote {
             else
                 otherLabelNumber++;
         }
-
-        return thresholdPolicy(ownerLabelNumber,otherLabelNumber);
-//        System.out.println("Predicting Label : Number of owner votes:" + ownerLabelNumber + "Number of other votes : " + otherLabelNumber);
-//        System.out.println("True label  = " + unLabelData.instance(0).classValue());
-        /* with threshold policy */
-
-
-        /* with winner take all policy */
-//        if(ownerLabelNumber >= otherLabelNumber)
-//            return IS_OWNER;
-//        else
-//            return IS_OTHER;
+        return thresholdPolicy(ownerLabelNumber, otherLabelNumber);
     }
 
     private int thresholdPolicy(int ownerLabelNumber, int otherLabelNumber) {
-        double confidence  = (double) ownerLabelNumber
+        double confidence = (double) ownerLabelNumber
                 / (ownerLabelNumber + otherLabelNumber);
 
         this.setConfidence(confidence);
@@ -282,31 +271,6 @@ public class DecisionMaker extends Vote {
         return j48.getFvWekaAttributes();
     }
 
-    /**
-     * prediction policy of per instance by Majority Voting
-     *
-     * @param currentInstance
-     * @return
-     */
-    public int voteForInstance(Instance currentInstance) {
-        dataUnLabeled = new Instances("TestInstances",
-                this.getFvWekaAttributes(), 10);
-        dataUnLabeled.setClassIndex(dataUnLabeled.numAttributes() - 1);
-        dataUnLabeled.add(currentInstance);
-        currentInstance.setDataset(dataUnLabeled);
-        int classType = 0;
-        try {
-            classType = this.instanceMajorityVoting(currentInstance);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        if(dataUnLabeled.numInstances()>0)
-        dataUnLabeled.remove(0);
-
-        return classType;
-
-    }
 
     protected void setOption() {
         try {
@@ -347,7 +311,7 @@ public class DecisionMaker extends Vote {
         getFvWekaAttributes().addElement(attribute4);
 
 //        getFvWekaAttributes().addElement(attribute5);
- //        getFvWekaAttributes().addElement(attribute6);
+        //        getFvWekaAttributes().addElement(attribute6);
 //        getFvWekaAttributes().addElement(attribute7);
 //        getFvWekaAttributes().addElement(attribute5);
         getFvWekaAttributes().addElement(classAttribute);
@@ -435,15 +399,21 @@ public class DecisionMaker extends Vote {
 
         return tmpMajorityIndex;
     }
+
     public double getThreshold() {
         return threshold;
     }
+
     public void setThreshold(double threshold) {
         this.threshold = threshold;
     }
+
     public double getConfidence() {
         return confidence;
     }
-    public void setConfidence(double confidence) {this.confidence=confidence; }
+
+    public void setConfidence(double confidence) {
+        this.confidence = confidence;
+    }
 
 }

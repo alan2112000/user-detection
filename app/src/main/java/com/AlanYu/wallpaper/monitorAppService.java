@@ -95,14 +95,14 @@ public class monitorAppService extends IntentService implements
             } catch (SQLException e) {
                 e.printStackTrace();
             }
-            Log.d("on startCommand", "finish readDtabase");
-        }
-        if (intent != null) {
-            Log.d("monitorAppService", "onStartCommand");
-        } else
-            Log.d("monitorAppService", "intent is null");
-        return START_STICKY;
+        Log.d("on startCommand", "finish readDtabase");
     }
+    if (intent != null) {
+        Log.d("monitorAppService", "onStartCommand");
+    } else
+            Log.d("monitorAppService", "intent is null");
+    return START_STICKY;
+}
 
     /**
      * get now runninig apps information
@@ -248,7 +248,6 @@ public class monitorAppService extends IntentService implements
                     ownerLabelNumber++;
                 else
                     otherLabelNumber++;
-
                 // do a decision by 5 seconds
                 if (this.getNumber_of_data() % 25 == 0) {
                     Thread myThread = new CaculateThread();

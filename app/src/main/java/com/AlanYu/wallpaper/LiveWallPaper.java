@@ -24,12 +24,14 @@ import android.view.SurfaceHolder;
 import android.widget.Toast;
 
 import com.AlanYu.Filter.DecisionMaker;
-import com.AlanYu.Filter.J48Classifier;
+import com.AlanYu.Filter.J48ClassiferForAC;
 import com.AlanYu.database.DBHelper;
 import com.AlanYu.database.TouchDataNode;
 
+import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.Vector;
 
 import weka.core.Attribute;
@@ -41,6 +43,7 @@ import weka.core.Instances;
 import static android.view.MotionEvent.ACTION_DOWN;
 import static android.view.MotionEvent.ACTION_MOVE;
 import static android.view.MotionEvent.ACTION_UP;
+import static com.AlanYu.Filter.DecisionMaker.IS_OWNER;
 
 @SuppressLint("ShowToast")
 public class LiveWallPaper extends WallpaperService {
@@ -82,12 +85,21 @@ public class LiveWallPaper extends WallpaperService {
     private String deleteProcessName = null;
     private Instances trainingData;
     private Instances testData;
+    private Instances testAcData;
     private Instances accessData;
     Vector<Vector> testDataNodes = new Vector<Vector>();
-    private J48Classifier j48;
+    J48ClassiferForAC j48;
     private DecisionMaker decisionMaker;
     private String[] PROTECTED_LIST = {"vending", "gm", "mms", "contact",
             "gallery"};
+
+    // Database parameter
+    private static final String tableName = "SENSOR_MAIN";
+    private static final String xColumn = "X";
+    private static final String yColumn = "Y";
+    private static final String zColumn = "Z";
+    private static final String appColumn = "APP";
+    private static final String labelColumn = "LABEL";
 
     public static double getThreshold() {
         return THRESHOLD;
@@ -429,6 +441,9 @@ public class LiveWallPaper extends WallpaperService {
 
         // TODO put the build model in asynTask
         decisionMaker = new DecisionMaker();
+        j48 = new J48ClassiferForAC();
+        testAcData = new Instances("AcData", j48.getFvWekaAttributes(), 10000);
+        testAcData.setClassIndex(testAcData.numAttributes() - 1);
         //for split the data to per-access data
         accessData = new Instances("accessData", decisionMaker.getWekaAttributes(), 1000);
         testData = new Instances("TestData", decisionMaker.getWekaAttributes(),
@@ -548,7 +563,7 @@ public class LiveWallPaper extends WallpaperService {
                     monitorAppService.class);
 
             if (visible) {
-                testData.clear();
+//                testData.clear();
                 getSharedPreferenceSetting();
                 stopService(intent);
                 keylock.disableKeyguard();
@@ -576,11 +591,11 @@ public class LiveWallPaper extends WallpaperService {
                                 Log.d("Decision making ", "maybe You are owner");
                                 setSharedPreference(decisionMaker.getConfidence());
                                 startService(intent);
-                                Log.d("Decision making ", "You are maybe the owner confidence "+ decisionMaker.getConfidence());
+                                Log.d("Decision making ", "You are maybe the owner confidence " + decisionMaker.getConfidence());
                                 Toast.makeText(LiveWallPaper.this, " You are maybe the owner ", Toast.LENGTH_SHORT).show();
                             } else {
                                 Toast.makeText(LiveWallPaper.this, " You are the owner ", Toast.LENGTH_SHORT).show();
-                                Log.d("Decision making ", "You are owner confidence "+decisionMaker.getConfidence());
+                                Log.d("Decision making ", "You are owner confidence " + decisionMaker.getConfidence());
                             }
                         }
 
@@ -626,6 +641,129 @@ public class LiveWallPaper extends WallpaperService {
         }
     }
 
+    private void readDatabase(String[] selectionArgs) throws SQLException {
+        DBHelper db = new DBHelper(this);
+        SQLiteDatabase readSource = db.getReadableDatabase();
+        Cursor cursor = readSource.query(tableName, new String[]{xColumn,
+                        yColumn, zColumn, labelColumn, appColumn}, "APP=? and LABEL=?", selectionArgs, null,
+                null, null
+        );
+        double x = 0, y = 0, z = 0;
+        try {
+            if (cursor.moveToFirst()) {
+                while (cursor.isAfterLast() == false) {
+                    x = Double.valueOf(cursor.getString(cursor
+                            .getColumnIndex(xColumn)));
+                    y = Double.valueOf(cursor.getString(cursor
+                            .getColumnIndex(yColumn)));
+                    z = Double.valueOf(cursor.getString(cursor
+                            .getColumnIndex(zColumn)));
+                    String label = cursor.getString(cursor
+                            .getColumnIndex(labelColumn));
+//                    Log.d("Read Database", "x =" + x + "y=" + y + "z=" + z"+ label : " + label);
+                    FastVector fv = j48.getFvWekaAttributes();
+                    Instance iExample = new DenseInstance(4);
+                    if (label.contains("domo") || label.contains("CY")
+                            || label.contains("Jorge"))
+                        ;
+                    else {
+                        iExample.setValue((Attribute) fv.elementAt(0), x);
+                        iExample.setValue((Attribute) fv.elementAt(1), y);
+                        iExample.setValue((Attribute) fv.elementAt(2), z);
+
+                        if (cursor.getString(cursor.getColumnIndex(labelColumn))
+                                .contains("owner"))
+                            iExample.setValue((Attribute) fv.elementAt(3), label);
+                        else
+                            iExample.setValue((Attribute) fv.elementAt(3), "other");
+                    }
+                    //add instance to testData
+                    testAcData.add(iExample);
+                    cursor.moveToNext();
+                }
+            }
+        } catch (Exception e1) {
+            System.out.println(e1);
+        } finally {
+            cursor.close();
+        }
+        cursor.close();
+    }
+
+
+    private void readDatabaseTraining(String appName) throws SQLException {
+        DBHelper db = new DBHelper(this);
+        String selectionArgs[] = new String[1];
+        selectionArgs[0] = appName;
+        SQLiteDatabase readSource = db.getReadableDatabase();
+        Cursor cursor = readSource.query(tableName, new String[]{xColumn,
+                        yColumn, zColumn, labelColumn, appColumn}, "APP=?", selectionArgs, null,
+                null, null
+        );
+        double x = 0, y = 0, z = 0;
+        try {
+            if (cursor.moveToFirst()) {
+                while (cursor.isAfterLast() == false) {
+                    x = Double.valueOf(cursor.getString(cursor
+                            .getColumnIndex(xColumn)));
+                    y = Double.valueOf(cursor.getString(cursor
+                            .getColumnIndex(yColumn)));
+                    z = Double.valueOf(cursor.getString(cursor
+                            .getColumnIndex(zColumn)));
+                    String label = cursor.getString(cursor
+                            .getColumnIndex(labelColumn));
+                    FastVector fv = j48.getFvWekaAttributes();
+                    Instance iExample = new DenseInstance(4);
+                    if (label.contains("domo") || label.contains("CY")
+                            || label.contains("Jorge"))
+                        ;
+                    else {
+                        iExample.setValue((Attribute) fv.elementAt(0), x);
+                        iExample.setValue((Attribute) fv.elementAt(1), y);
+                        iExample.setValue((Attribute) fv.elementAt(2), z);
+
+                        if (cursor.getString(cursor.getColumnIndex(labelColumn))
+                                .contains("owner"))
+                            iExample.setValue((Attribute) fv.elementAt(3), label);
+                        else
+                            iExample.setValue((Attribute) fv.elementAt(3), "other");
+                    }
+                    j48.addInstanceToTrainingData(iExample);
+                    cursor.moveToNext();
+                }
+            }
+        } catch (Exception e1) {
+            System.out.println(e1);
+        } finally {
+            cursor.close();
+        }
+        cursor.close();
+    }
+
+    /**
+     *  Experiment : classify unlabled data of accelerometer
+     * @param unlabeledData
+     * @return
+     */
+
+    public int[] classifyAcData(Instances unlabeledData) {
+        double[] prediction;
+        int votes[] = new int[2];
+        for (int i = 0; i < unlabeledData.numInstances(); i++) {
+            try {
+                prediction = j48.returnClassifier().distributionForInstance(unlabeledData.instance(i));
+                if (prediction[IS_OWNER] > prediction[DecisionMaker.IS_OTHER])
+                    votes[IS_OWNER]++;
+                else
+                    votes[DecisionMaker.IS_OTHER]++;
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return votes;
+    }
+
     public class CaculateThread extends Thread {
 
         private void evaluationPerClassifierEveryInstances() {
@@ -641,46 +779,77 @@ public class LiveWallPaper extends WallpaperService {
          */
         public void evaluatoinPerAccess() {
             super.run();
-            for (int j = 1; j < 10; j++) {
-                decisionMaker.setThreshold((double) j / 10);
-                int[] result = new int[4];
-                try {
-                    int startIndex = trainingData.numInstances();
-                    accessData.add(testData.get(0));
-                    for (int i = 1; i < testData.numInstances(); i++, startIndex++) {
+
+            for (int j = 2; j < 31; j++) {
+//                decisionMaker.setThreshold((double) j / 10);
+//                double[] accessTimes = new int[200];
+            int[] result = new int[4];
+                int ownerConfidence=0;
+                int otherConfidence=0;
+                int ownerInTest=0;
+            try {
+                int startIndex = trainingData.numInstances();
+                accessData.add(testData.get(0));
+                for (int i = 1; i < testData.numInstances(); i++, startIndex++) {
+                    if(testData.instance(i).classValue() == (double)DecisionMaker.IS_OWNER)
+                        ownerInTest++;
 //                    Log.d("decide per touch"," in one access i:"+i+ "label = "+testData.instance(i).classValue());
-                        if (testData.instance(i).classValue() == testData.instance(i - 1).classValue()) {
-                            if (timeStamp.elementAt(startIndex) - timeStamp.elementAt(startIndex - 1) < PERIOD) {
-                                accessData.add(testData.get(i));
-                            } else {
-                                int trueLabel = (int) testData.instance(i - 1).classValue();
-                                if (accessData.numInstances() >= 2) {
-//                                    Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
-                                    int label = decisionMaker.getFinalLabel(accessData);
-                                    result = decisionMaker.evaluation(trueLabel, label, result);
-                                } else {
-//                                    System.out.println("access data smaller than 2 ");
-                                    ;
-                                }
-                                accessData.clear();
-                                accessData.add(testData.get(i));
-                            }
+                    if (testData.instance(i).classValue() == testData.instance(i - 1).classValue()) {
+                        if (timeStamp.elementAt(startIndex) - timeStamp.elementAt(startIndex - 1) < PERIOD) {
+                            accessData.add(testData.get(i));
                         } else {
                             int trueLabel = (int) testData.instance(i - 1).classValue();
-                            if (accessData.numInstances() >= 2) {
-//                                Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
+                            if (accessData.numInstances() == j) {
+//                                    Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
+//                                accessTimes[accessData.numInstances()]++;
                                 int label = decisionMaker.getFinalLabel(accessData);
+
+                                    /* bellow is for accelerometer data check */
+                                if (confidenCheck()) {
+                                    if (trueLabel == IS_OWNER) {
+                                        label = acClassify("owner");
+                                        ownerConfidence++;
+                                    } else {
+                                        label = acClassify("fucker");
+                                        otherConfidence++;
+                                    }
+                                    // read from ac database by the app type and label and throw into trained classifier
+                                }
                                 result = decisionMaker.evaluation(trueLabel, label, result);
                             } else {
-//                                System.out.println("access data smaller than 2 ");
+//                                    System.out.println("access data smaller than 2 ");
                                 ;
                             }
                             accessData.clear();
                             accessData.add(testData.get(i));
                         }
+                    } else {
+                        int trueLabel = (int) testData.instance(i - 1).classValue();
+                        if (accessData.numInstances() == 2) {
+//                                Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
+//                            accessTimes[accessData.numInstances()]++;
+                            int label = decisionMaker.getFinalLabel(accessData);
+                                    /* bellow is for accelerometer data check */
+                            if (confidenCheck()) {
+                                if (trueLabel == IS_OWNER) {
+                                    label = acClassify("owner");
+                                    ownerConfidence++;
+                                } else {
+                                    label = acClassify("other");
+                                    otherConfidence++;
+                                }
+                                // read from ac database by the app type and label and throw into trained classifier
+//                                Log.d("Confidence Check","tmpLabel: "+label+" True label: "+trueLabel);
+                            }
+                            result = decisionMaker.evaluation(trueLabel, label, result);
+                        } else {
+//                                System.out.println("access data smaller than 2 ");
+                            ;
+                        }
+                        accessData.clear();
+                        accessData.add(testData.get(i));
                     }
-
-
+                }
 //                    System.out.println(" Total test instances number is : " + testData.numInstances() + "Training instances number is " + trainingData.numInstances());
 //                    int owner = 0;
 //                    for (int i = 0; i < trainingData.numInstances(); i++) {
@@ -689,12 +858,51 @@ public class LiveWallPaper extends WallpaperService {
 //                        }
 //                    }
 //                    System.out.println("Training data owner instances is : " + owner);
-                    decisionMaker.printStatistics(result);
+//                for (int i = 2; i < 200; i++) {
+//                    System.out.println("number "+i+" acces time is "+accessTimes[i]);
+//                }
+                System.out.println("access time : "+ j);
+                decisionMaker.printStatistics(result);
 
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+
+        }
+}
+
+        private int acClassify(String label) throws SQLException {
+            Log.d("AC classifiy","confidence "+decisionMaker.getConfidence()+" label is :"+label);
+            testAcData.clear();
+            j48.getTrainingData().clear();
+            int votes[];
+            String [] otherlabel = new String[]{"fucker","eraser","gary","peg","weiling","joanne"};
+            Random ran = new Random(System.currentTimeMillis());
+            readDatabaseTraining("gallery");
+            j48.trainingData();
+            String[] selectionArgs;
+            if (label == "owner")
+                selectionArgs = new String[]{"gallery", "owner"};
+            else
+                selectionArgs = new String[]{"gallery", otherlabel[ran.nextInt(6)]};
+
+            readDatabase(selectionArgs);
+            votes = classifyAcData(testAcData);
+            double probabilityA = (double) (votes[IS_OWNER]) / (votes[IS_OWNER] + votes[DecisionMaker.IS_OTHER]);
+            Log.d("Ac classifier","Probability is : "+probabilityA);
+//            double probability = probabilityA * (1 - decisionMaker.getConfidence()) + decisionMaker.getConfidence();
+            if (probabilityA > decisionMaker.getThreshold())
+                return decisionMaker.IS_OWNER;
+            else
+                return decisionMaker.IS_OTHER;
+        }
+
+
+        private boolean confidenCheck() {
+            if (decisionMaker.getConfidence() > decisionMaker.getThreshold() && decisionMaker.getConfidence() < 0.8) {
+                return true;
+            } else
+                return false;
         }
 
         public void evalution(Instances perAccess) {
@@ -705,6 +913,7 @@ public class LiveWallPaper extends WallpaperService {
                 e.printStackTrace();
             }
         }
+
 
         public void evaluationProcessDataPerAccess(Vector data) {
 
@@ -719,7 +928,7 @@ public class LiveWallPaper extends WallpaperService {
                     Vector perAccess = (Vector) it.next();
                     TouchDataNode touchDataNode = (TouchDataNode) perAccess.get(0);
                     if (touchDataNode.getLabel().contains("owner"))
-                        trueLabel = DecisionMaker.IS_OWNER;
+                        trueLabel = IS_OWNER;
                     else
                         trueLabel = DecisionMaker.IS_OTHER;
 
@@ -738,8 +947,31 @@ public class LiveWallPaper extends WallpaperService {
 //            evaluationPerClassifierEveryInstances();
 //            evalution(testData);
 //            evaluationProcessDataPerAccess(testDataNodes);
-
+//            evaluationWithAccAndTouch(testData);
         }
+
+//        private void evaluationWithAccAndTouch(Instances data) {
+//            try {
+//                decisionMaker.evaluationEachClassifier(data);
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//
+//            if(decisionMaker.getConfidence() > decisionMaker.getThreshold() && decisionMaker.getConfidence() < 0.8){
+//                String accessLabel = "" ;  //todo: grab access label and access app
+//                String accessApp = "";
+//                String[] selectionArgs={accessLabel,accessApp};
+//                trainingData2 = readDatabase();
+//                j48AC.buildClassifier(trainingData2)
+//            }
+//
+//
+//             // if probability is bigger than threshold but lower than 0.8 than read  acc database
+//                    //build classifier of acc classifier
+//                    //read database from acc
+//                        //query the label and reponse application type
+//                            //throw into
+//        }
     }
 
 }
