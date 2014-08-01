@@ -15,16 +15,24 @@ import weka.core.Instances;
 @SuppressWarnings("deprecation")
 public class DecisionMaker extends Vote {
 
+    // Constant
     public static final int TRAINING = 0;
     public static final int TEST = 1;
+    public static final int EXPERIMENT = 2 ;
     public static final int IS_OWNER = 0;
     public static final int IS_OTHER = 1;
+    public static final int IS_SUSPICIOUS = 2;
     public static final int TRUE_POSITIVE = 0;
     public static final int TRUE_NEGATIVE = 1;
     public static final int FALSE_POSITIVE = 2;
     public static final int FALSE_NEGATIVE = 3;
-    public static final int ATTRIBUTE_SIZE = 5;
 
+    //Config Setting
+    public static final int ATTRIBUTE_SIZE = 5;
+    public static final double UPPER_BOUND = 0.9 ;
+
+
+    // Classifier Instance
     private J48Classifier j48;
     private kNNClassifier knn;
     private KStarClassifier kstar;
@@ -119,9 +127,9 @@ public class DecisionMaker extends Vote {
         int[] result = new int[4];
         for (int i = 0; i < labeledData.numInstances(); i++) {
             try {
-                int tmpLabel = instanceMajorityVoting(labeledData.instance(i));
+                int tmpLabel = getLabelByMajorityVoting(labeledData.instance(i));
                 int trueLabel = (int) labeledData.instance(i).classValue();
-                result = evaluation(trueLabel, tmpLabel, result);
+                result = getEvaluation(trueLabel, tmpLabel, result);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -131,7 +139,7 @@ public class DecisionMaker extends Vote {
     }
 
     /**
-     * accumulate the evaluation result
+     * accumulate the getEvaluation result
      * acculatede
      *
      * @param trueLabel
@@ -139,7 +147,7 @@ public class DecisionMaker extends Vote {
      * @param result
      * @return
      */
-    public int[] evaluation(int trueLabel, int tmpLabel, int[] result) {
+    public int[] getEvaluation(int trueLabel, int tmpLabel, int[] result) {
         if (tmpLabel == DecisionMaker.IS_OWNER) {
             if (trueLabel == DecisionMaker.IS_OWNER)
                 result[TRUE_POSITIVE]++;
@@ -199,7 +207,7 @@ public class DecisionMaker extends Vote {
             try {
                 classType = (int) classifier.classifyInstance(labeledData
                         .instance(i));
-                result = evaluation((int) labeledData.instance(i).classValue(), classType, result);
+                result = getEvaluation((int) labeledData.instance(i).classValue(), classType, result);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -225,7 +233,7 @@ public class DecisionMaker extends Vote {
                 }
             }
         }
-        return thresholdPolicy(votes[DecisionMaker.IS_OWNER], votes[DecisionMaker.IS_OTHER]);
+        return getUserIdentity(votes[DecisionMaker.IS_OWNER], votes[DecisionMaker.IS_OTHER]);
     }
 
     /**
@@ -239,10 +247,9 @@ public class DecisionMaker extends Vote {
         int ownerLabelNumber = 0;
         int otherLabelNumber = 0;
         int classtype = 0;
-//        Log.d("in predicting label","number of unlable instances: "+unLabelData.numInstances());
         for (int i = 0; i < unLabelData.numInstances(); i++) {
             try {
-                classtype = this.instanceMajorityVoting(unLabelData.instance(i));
+                classtype = this.getLabelByMajorityVoting(unLabelData.instance(i));
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -251,21 +258,21 @@ public class DecisionMaker extends Vote {
             else
                 otherLabelNumber++;
         }
-        return thresholdPolicy(ownerLabelNumber, otherLabelNumber);
+        return getUserIdentity(ownerLabelNumber, otherLabelNumber);
     }
 
-    private int thresholdPolicy(int ownerLabelNumber, int otherLabelNumber) {
+    private int getUserIdentity(int ownerLabelNumber, int otherLabelNumber) {
         double confidence = (double) ownerLabelNumber
                 / (ownerLabelNumber + otherLabelNumber);
-
+        double threshold = this.getThreshold();
         this.setConfidence(confidence);
-        if (confidence > this.getThreshold())
+        if (confidence > UPPER_BOUND)
             return IS_OWNER;
+        else if (confidence <= UPPER_BOUND  && confidence > threshold )
+            return IS_SUSPICIOUS;
         else
             return IS_OTHER;
-
     }
-
 
     public FastVector getWekaAttributes() {
         return j48.getFvWekaAttributes();
@@ -349,7 +356,7 @@ public class DecisionMaker extends Vote {
      * @return
      * @throws Exception
      */
-    public int instanceMajorityVoting(Instance instance) throws Exception {
+    public int getLabelByMajorityVoting(Instance instance) throws Exception {
 
         double[] probs = new double[instance.classAttribute().numValues()];
         double[] votes = new double[probs.length];

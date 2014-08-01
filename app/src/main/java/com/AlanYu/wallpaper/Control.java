@@ -42,7 +42,13 @@ public class Control extends Activity {
     DevicePolicyManager mDPM;
     ActivityManager mAM;
     ComponentName mDeviceComponentName;
+    private SharedPreferences settings;
+    private RadioButton normalButton;
+    RadioGroup radioGroup;
+    private Intent intent;
 
+    public Control() {
+    }
 
     private OnClickListener authorize = new OnClickListener() {
         @Override
@@ -56,12 +62,14 @@ public class Control extends Activity {
             startActivityForResult(intent, RESULT_ENABLE);
         }
     };
+
     private OnClickListener disableDevice = new OnClickListener() {
         @Override
         public void onClick(View v) {
             mDPM.removeActiveAdmin(mDeviceComponentName);
         }
     };
+
     private OnClickListener forceLock = new OnClickListener() {
 
         @Override
@@ -81,9 +89,6 @@ public class Control extends Activity {
         }
 
     };
-    RadioGroup radioGroup;
-    private Intent intent;
-
 
     /*
      * enable application to monitor the whole data
@@ -134,13 +139,6 @@ public class Control extends Activity {
         }
     };
 
-
-    private SharedPreferences settings;
-    private RadioButton normalButton;
-
-
-    public Control() {
-    }
 
 
     @Override

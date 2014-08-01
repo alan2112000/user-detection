@@ -76,11 +76,11 @@ public class LiveWallPaper extends WallpaperService {
     KeyguardManager keyguardManager;
     KeyguardLock keylock;
     PowerManager powerManager;
-    DevicePolicyManager mDPM;
+    DevicePolicyManager devicePolicyManager;
     ComponentName mDeviceAdminSample;
     Vector<Double> timeStamp;
     private boolean is_experiment = false;
-    private int mode = DecisionMaker.TEST;
+    private int mode;
     private int pid = 0;
     private String deleteProcessName = null;
     private Instances trainingData;
@@ -90,6 +90,7 @@ public class LiveWallPaper extends WallpaperService {
     Vector<Vector> testDataNodes = new Vector<Vector>();
     J48ClassiferForAC j48;
     private DecisionMaker decisionMaker;
+    private int status=0;
     private String[] PROTECTED_LIST = {"vending", "gm", "mms", "contact",
             "gallery"};
 
@@ -123,13 +124,7 @@ public class LiveWallPaper extends WallpaperService {
         return new TouchEngine();
     }
 
-    /**
-     * to find the processName is in the recently running apps or not , if yes  set the setting
-     *
-     * @param processName every apps' name in the protected apps list
-     * @return
-     */
-    private boolean recentlyRunningApps(String processName) {
+    private boolean isRecentlyRunningApp(String processName) {
         ActivityManager service = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
         List<RecentTaskInfo> recentTasks = service.getRecentTasks(1,
                 ActivityManager.RECENT_WITH_EXCLUDED);
@@ -147,7 +142,7 @@ public class LiveWallPaper extends WallpaperService {
 
     private boolean isInProtectList() {
         for (String processName : PROTECTED_LIST) {
-            if (recentlyRunningApps(processName))
+            if (isRecentlyRunningApp(processName))
                 return true;
         }
         return false;
@@ -435,7 +430,7 @@ public class LiveWallPaper extends WallpaperService {
         keyguardManager = (KeyguardManager) getSystemService(Activity.KEYGUARD_SERVICE);
         keylock = keyguardManager.newKeyguardLock(Activity.KEYGUARD_SERVICE);
         powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        mDPM = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+        devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         mDeviceAdminSample = new ComponentName(LiveWallPaper.this,
                 deviceAdminReceiver.class);
 
@@ -463,9 +458,7 @@ public class LiveWallPaper extends WallpaperService {
         } else {
             // training mode collect all event data to database
             if (mode == DecisionMaker.TRAINING) {
-            }
-            // test every touch event
-            else {
+            } else {
                 readDatabase();
                 decisionMaker.addDataToTraining(trainingData);
                 decisionMaker.buildClassifier();
@@ -482,7 +475,6 @@ public class LiveWallPaper extends WallpaperService {
         mode = setting.getInt("Mode", DecisionMaker.TEST);
         Log.d("sharePreference ", "is_experiment :" + is_experiment);
         is_experiment = setting.getBoolean("Experiment", false);
-
         Log.d("Get preference setting  ", "mode:" + mode + " is_experiment: " + is_experiment + " threshold : " + THRESHOLD + " now label :" + nowLabel);
         // TODO get protected list from apps
         // TODO the is_experiment can't get real data
@@ -563,82 +555,97 @@ public class LiveWallPaper extends WallpaperService {
                     monitorAppService.class);
 
             if (visible) {
-//                testData.clear();
+                if(getStatus()==0){
+                    keylock.disableKeyguard();
+                    Log.d("visible", "status=0 disable keyguard");
+                }
+                else if(keyguardManager.isKeyguardLocked()){
+                    Log.d("visible", "keyguardlocked");
+                    //lock screen by touch event data
+//                    keylock.disableKeyguard();
+                }
+                else{
+                    setStatus(0);
+                }
+                //autounlock
+//                keylock.disableKeyguard();
+
                 getSharedPreferenceSetting();
                 stopService(intent);
-                keylock.disableKeyguard();
-                Log.d("visible", "true now user : " + nowLabel);
+                //how to define the same access
+                if(!is_experiment)
+                    testData.clear();
             } else {
-                /*
-                 * ============================================================ if
-				 * wallpaperService is forebackground then kill monitorAppsService else
-				 * start monitorAppsService
-				 * ============================================================
-				 */
+                Log.d("unvisible", "true now user : " + nowLabel);
                 if (isInProtectList()) {
-                    if (mode == DecisionMaker.TEST) {
-                        decisionMaker.setThreshold(getThreshold());
-                        Log.d("invisible",
-                                "executed process is in the protect list ");
-                        if (DecisionMaker.IS_OTHER == decisionMaker.getFinalLabel(testData)) {
-                            Log.d("Decision making ", "You are other");
-                            Toast.makeText(LiveWallPaper.this, " You are not the owner you mother fucker", Toast.LENGTH_LONG).show();
+                    if(getStatus() == 0){
+                        if (mode == DecisionMaker.TEST) {
+                            decisionMaker.setThreshold(getThreshold());
+                            int identity = decisionMaker.getFinalLabel(testData);
+                            reactToIdentity(identity);
+                            setStatus(1);
+                        } else if (mode == DecisionMaker.TRAINING) {
                             startService(intent);
-                            //TODO  1. lock screen 2. enable the lock function
-                        } else {
-                            // because threshold smalller than 0.8 still have high FAR
-                            if (decisionMaker.getConfidence() < 0.8) {
-                                Log.d("Decision making ", "maybe You are owner");
-                                setSharedPreference(decisionMaker.getConfidence());
-                                startService(intent);
-                                Log.d("Decision making ", "You are maybe the owner confidence " + decisionMaker.getConfidence());
-                                Toast.makeText(LiveWallPaper.this, " You are maybe the owner ", Toast.LENGTH_SHORT).show();
-                            } else {
-                                Toast.makeText(LiveWallPaper.this, " You are the owner ", Toast.LENGTH_SHORT).show();
-                                Log.d("Decision making ", "You are owner confidence " + decisionMaker.getConfidence());
-                            }
+                            Log.d("LiveWall paper", "mode is training and start intent");
                         }
-
-                        // TODO   1. add 1 success access to database for the future to deciside when time to retraining classifier
-                    } else if (mode == DecisionMaker.TRAINING) {
-                        //training mode : record all of accelerometers data
-                        startService(intent);
-                        Log.d("LiveWall paper", "mode is training and start intent");
                     }
-                    // TODO to record the recently precision and if precision decrease
-                    // always drop below
-                    // 0.5 remember to add some retraining policy
-                    // TODO below is lock screen policy
-//                    if ((DecisionMaker.IS_OTHER == decisionMaker.getFinalLabel(testData))) {
-//                        keylock.reenableKeyguard();
-//                        mDPM.lockNow();
-//
-//                        /* below code is manage the screen */
-////                        if (keyguardManager.) {
-////                            Log.d("lock screen",
-////                                    "You are not the owner but u just unlock screen");
-////                            keylock.disableKeyguard();
-////                        } else {
-////                            Log.d("lock screen", "You are not the user");
-////                            keylock.reenableKeyguard();
-////                            mDPM.lockNow();
-////                        }
-//                        // You are Owner
-//                    } else {
-//                        keylock.disableKeyguard();
-//                        Log.d("invisible",
-//                                "it's owner and apps is also  in protected list ");
-//                    }
+                    else if(getStatus() == 1) {
+                        //unlock phone
+                    }
                 }
             }
             super.onVisibilityChanged(visible);
         }
+    }
 
-        private void setSharedPreference(double confidence) {
-            SharedPreferences settings = getSharedPreferences("Preference",
-                    0);
-            settings.edit().putFloat("CONFIDENCE", (float) confidence).commit();
+    private void reactToIdentity(int identity) {
+//        if ((DecisionMaker.IS_OTHER == decisionMaker.getFinalLabel(testData))) {
+//            keylock.reenableKeyguard();
+//            devicePolicyManager.lockNow();
+//                        /* below code is manage the screen */
+//            if (keyguardManager.isKeyguardLocked()) {
+//                Log.d("lock screen",
+//                        "You are not the owner but u just unlock screen");
+//                keylock.disableKeyguard();
+//            } else {
+//                Log.d("lock screen", "You are not the user");
+//                keylock.reenableKeyguard();
+//                devicePolicyManager.lockNow();
+//            }
+//        } else {
+//            keylock.disableKeyguard();
+//            Log.d("invisible",
+//                    "it's owner and apps is also  in protected list ");
+//        }
+        switch (identity) {
+            case DecisionMaker.IS_OWNER:
+                Toast.makeText(LiveWallPaper.this, " You are the owner ", Toast.LENGTH_SHORT).show();
+                Log.d("Decision making ", "You are owner confidence " + decisionMaker.getConfidence());
+//                keylock.disableKeyguard();
+                break;
+            case DecisionMaker.IS_SUSPICIOUS:
+                Intent intent = new Intent(LiveWallPaper.this, monitorAppService.class);
+                setSharedPreference(decisionMaker.getConfidence(),identity);
+                Log.d("Decision making ", "You are maybe the owner confidence " + decisionMaker.getConfidence());
+                Toast.makeText(LiveWallPaper.this, " You are maybe the owner ", Toast.LENGTH_SHORT).show();
+                startService(intent);
+                break;
+            case DecisionMaker.IS_OTHER:
+                Log.d("Decision making ", "You are other");
+                Toast.makeText(LiveWallPaper.this, " You are not the owner you mother fucker", Toast.LENGTH_LONG).show();
+                keylock.reenableKeyguard();
+                lockSystem();
+                break;
         }
+    }
+
+    private void setSharedPreference(double confidence,int identity) {
+        SharedPreferences settings = getSharedPreferences("Preference",0);
+        SharedPreferences.Editor editor = settings.edit();
+        editor.putFloat("CONFIDENCE", (float) confidence);
+        editor.putInt("Identity",identity);
+        editor.commit();
+        //todo set supicious and training status
     }
 
     private void readDatabase(String[] selectionArgs) throws SQLException {
@@ -740,8 +747,20 @@ public class LiveWallPaper extends WallpaperService {
         cursor.close();
     }
 
+
+    private void lockSystem() {
+        Log.d("Lock System", "========Lock Screen========");
+
+        boolean active = devicePolicyManager.isAdminActive(mDeviceAdminSample);
+        if (active) {
+
+            devicePolicyManager.lockNow();
+        }
+    }
+
     /**
-     *  Experiment : classify unlabled data of accelerometer
+     * Experiment : classify unlabled data of accelerometer
+     *
      * @param unlabeledData
      * @return
      */
@@ -764,6 +783,7 @@ public class LiveWallPaper extends WallpaperService {
         return votes;
     }
 
+
     public class CaculateThread extends Thread {
 
         private void evaluationPerClassifierEveryInstances() {
@@ -780,76 +800,77 @@ public class LiveWallPaper extends WallpaperService {
         public void evaluatoinPerAccess() {
             super.run();
 
-            for (int j = 2; j < 31; j++) {
-//                decisionMaker.setThreshold((double) j / 10);
+            for (int j = 1; j < 10; j++) {
+                decisionMaker.setThreshold((double) j / 10);
 //                double[] accessTimes = new int[200];
-            int[] result = new int[4];
-                int ownerConfidence=0;
-                int otherConfidence=0;
-                int ownerInTest=0;
-            try {
-                int startIndex = trainingData.numInstances();
-                accessData.add(testData.get(0));
-                for (int i = 1; i < testData.numInstances(); i++, startIndex++) {
-                    if(testData.instance(i).classValue() == (double)DecisionMaker.IS_OWNER)
-                        ownerInTest++;
+                int[] result = new int[4];
+                int ownerConfidence = 0;
+                int otherConfidence = 0;
+                int ownerInTest = 0;
+                try {
+                    int startIndex = trainingData.numInstances();
+                    accessData.add(testData.get(0));
+                    for (int i = 1; i < testData.numInstances(); i++, startIndex++) {
+                        if (testData.instance(i).classValue() == (double) DecisionMaker.IS_OWNER)
+                            ownerInTest++;
 //                    Log.d("decide per touch"," in one access i:"+i+ "label = "+testData.instance(i).classValue());
-                    if (testData.instance(i).classValue() == testData.instance(i - 1).classValue()) {
-                        if (timeStamp.elementAt(startIndex) - timeStamp.elementAt(startIndex - 1) < PERIOD) {
-                            accessData.add(testData.get(i));
-                        } else {
-                            int trueLabel = (int) testData.instance(i - 1).classValue();
-                            if (accessData.numInstances() == j) {
+                        if (testData.instance(i).classValue() == testData.instance(i - 1).classValue()) {
+                            if (timeStamp.elementAt(startIndex) - timeStamp.elementAt(startIndex - 1) < PERIOD) {
+                                accessData.add(testData.get(i));
+                            } else {
+                                int trueLabel = (int) testData.instance(i - 1).classValue();
+                                //one access
+                                if (accessData.numInstances() >= 2) {
 //                                    Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
 //                                accessTimes[accessData.numInstances()]++;
-                                int label = decisionMaker.getFinalLabel(accessData);
+                                    int label = decisionMaker.getFinalLabel(accessData);
 
+                                    /* bellow is for accelerometer data check */
+                                    if (confidenCheck()) {
+                                        if (trueLabel == IS_OWNER) {
+                                            label = acClassify("owner");
+                                            ownerConfidence++;
+                                        } else {
+                                            label = acClassify("fucker");
+                                            otherConfidence++;
+                                        }
+                                        // read from ac database by the app type and label and throw into trained classifier
+                                    }
+                                    result = decisionMaker.getEvaluation(trueLabel, label, result);
+                                } else {
+//                                    System.out.println("access data smaller than 2 ");
+                                    ;
+                                }
+                                accessData.clear();
+                                accessData.add(testData.get(i));
+                            }
+                        } else {
+                            int trueLabel = (int) testData.instance(i - 1).classValue();
+                            if (accessData.numInstances() >= 2) {
+//                                Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
+//                            accessTimes[accessData.numInstances()]++;
+                                int label = decisionMaker.getFinalLabel(accessData);
                                     /* bellow is for accelerometer data check */
                                 if (confidenCheck()) {
                                     if (trueLabel == IS_OWNER) {
                                         label = acClassify("owner");
                                         ownerConfidence++;
                                     } else {
-                                        label = acClassify("fucker");
+                                        label = acClassify("other");
                                         otherConfidence++;
                                     }
                                     // read from ac database by the app type and label and throw into trained classifier
+//                                Log.d("Confidence Check","tmpLabel: "+label+" True label: "+trueLabel);
                                 }
-                                result = decisionMaker.evaluation(trueLabel, label, result);
+                                result = decisionMaker.getEvaluation(trueLabel, label, result);
                             } else {
-//                                    System.out.println("access data smaller than 2 ");
+//                                System.out.println("access data smaller than 2 ");
                                 ;
                             }
                             accessData.clear();
                             accessData.add(testData.get(i));
                         }
-                    } else {
-                        int trueLabel = (int) testData.instance(i - 1).classValue();
-                        if (accessData.numInstances() == 2) {
-//                                Log.d("one access", "now i = " + i + "Number of accessData instances :" + String.valueOf(accessData.numInstances()));
-//                            accessTimes[accessData.numInstances()]++;
-                            int label = decisionMaker.getFinalLabel(accessData);
-                                    /* bellow is for accelerometer data check */
-                            if (confidenCheck()) {
-                                if (trueLabel == IS_OWNER) {
-                                    label = acClassify("owner");
-                                    ownerConfidence++;
-                                } else {
-                                    label = acClassify("other");
-                                    otherConfidence++;
-                                }
-                                // read from ac database by the app type and label and throw into trained classifier
-//                                Log.d("Confidence Check","tmpLabel: "+label+" True label: "+trueLabel);
-                            }
-                            result = decisionMaker.evaluation(trueLabel, label, result);
-                        } else {
-//                                System.out.println("access data smaller than 2 ");
-                            ;
-                        }
-                        accessData.clear();
-                        accessData.add(testData.get(i));
                     }
-                }
 //                    System.out.println(" Total test instances number is : " + testData.numInstances() + "Training instances number is " + trainingData.numInstances());
 //                    int owner = 0;
 //                    for (int i = 0; i < trainingData.numInstances(); i++) {
@@ -861,35 +882,35 @@ public class LiveWallPaper extends WallpaperService {
 //                for (int i = 2; i < 200; i++) {
 //                    System.out.println("number "+i+" acces time is "+accessTimes[i]);
 //                }
-                System.out.println("access time : "+ j);
-                decisionMaker.printStatistics(result);
+                    System.out.println("access time : " + j);
+                    decisionMaker.printStatistics(result);
 
-            } catch (Exception e) {
-                e.printStackTrace();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
             }
-
         }
-}
 
         private int acClassify(String label) throws SQLException {
-            Log.d("AC classifiy","confidence "+decisionMaker.getConfidence()+" label is :"+label);
+            Log.d("AC classifiy", "confidence " + decisionMaker.getConfidence() + " label is :" + label);
             testAcData.clear();
             j48.getTrainingData().clear();
             int votes[];
-            String [] otherlabel = new String[]{"fucker","eraser","gary","peg","weiling","joanne"};
+            String[] otherlabel = new String[]{"fucker", "eraser", "gary", "peg", "weiling", "joanne"};
             Random ran = new Random(System.currentTimeMillis());
-            readDatabaseTraining("gallery");
+            readDatabaseTraining("contact");
             j48.trainingData();
             String[] selectionArgs;
             if (label == "owner")
-                selectionArgs = new String[]{"gallery", "owner"};
+                selectionArgs = new String[]{"contact", "owner"};
             else
-                selectionArgs = new String[]{"gallery", otherlabel[ran.nextInt(6)]};
+                selectionArgs = new String[]{"contact", otherlabel[ran.nextInt(6)]};
 
             readDatabase(selectionArgs);
             votes = classifyAcData(testAcData);
             double probabilityA = (double) (votes[IS_OWNER]) / (votes[IS_OWNER] + votes[DecisionMaker.IS_OTHER]);
-            Log.d("Ac classifier","Probability is : "+probabilityA);
+            Log.d("Ac classifier", "Probability is : " + probabilityA);
 //            double probability = probabilityA * (1 - decisionMaker.getConfidence()) + decisionMaker.getConfidence();
             if (probabilityA > decisionMaker.getThreshold())
                 return decisionMaker.IS_OWNER;
@@ -934,7 +955,7 @@ public class LiveWallPaper extends WallpaperService {
 
                     slingAndTouch(perAccess, isTraing);
                     predictLabel = decisionMaker.getFinalLabel(testData);
-                    result = decisionMaker.evaluation(trueLabel, predictLabel, result);
+                    result = decisionMaker.getEvaluation(trueLabel, predictLabel, result);
                     testData.clear();
                 }
                 decisionMaker.printStatistics(result);
@@ -973,5 +994,14 @@ public class LiveWallPaper extends WallpaperService {
 //                            //throw into
 //        }
     }
+
+    public int getStatus() {
+        return status;
+    }
+
+    public void setStatus(int status) {
+        this.status = status;
+    }
+
 
 }
